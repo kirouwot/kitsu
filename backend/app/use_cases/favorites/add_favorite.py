@@ -1,8 +1,6 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy.exc import IntegrityError
-
 from ...background import Job, default_job_runner
 from ...domain.ports.favorite import (
     FavoriteData,
@@ -48,10 +46,6 @@ async def _apply_add_favorite(
                 created_at=created_at,
             )
         await favorite_repo.commit()
-    except IntegrityError:
-        await favorite_repo.rollback()
-        if await get_favorite(favorite_repo, user_id, anime_id) is None:
-            raise
     except Exception:
         await favorite_repo.rollback()
         raise
