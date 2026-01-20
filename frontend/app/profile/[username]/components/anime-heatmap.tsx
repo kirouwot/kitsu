@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import CalendarHeatmap from "react-calendar-heatmap";
 import styles from "../heatmap.module.css";
 import { Tooltip } from "react-tooltip";
-import { useHydrationTimestamp } from "@/providers/hydration-timestamp-provider";
 
 type HeatmapValue = {
   date: string;
@@ -19,38 +18,22 @@ function AnimeHeatmap() {
   const heatmapData: HeatmapValue[] = [];
   const totalContributionCount = 0;
 
-  const hydrationTimestamp = useHydrationTimestamp();
-  const [hasHydrated, setHasHydrated] = useState(false);
-  const [baseDate, setBaseDate] = useState(
-    () => new Date(hydrationTimestamp ?? new Date().toISOString()),
-  );
-  const useUtc = !hasHydrated;
-  const dateOptions: Intl.DateTimeFormatOptions = useUtc
-    ? { month: "short", day: "numeric", timeZone: "UTC" }
-    : { month: "short", day: "numeric" };
+  const [baseDate] = useState(() => new Date("2024-01-01T00:00:00.000Z"));
+  const dateOptions: Intl.DateTimeFormatOptions = {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  };
   const startDate = useMemo(() => {
     const date = new Date(baseDate);
-    if (useUtc) {
-      date.setUTCMonth(0, 1);
-    } else {
-      date.setMonth(0, 1);
-    }
+    date.setUTCMonth(0, 1);
     return date;
-  }, [baseDate, useUtc]);
+  }, [baseDate]);
   const endDate = useMemo(() => {
     const date = new Date(baseDate);
-    if (useUtc) {
-      date.setUTCMonth(11, 31);
-    } else {
-      date.setMonth(11, 31);
-    }
+    date.setUTCMonth(11, 31);
     return date;
-  }, [baseDate, useUtc]);
-
-  useEffect(() => {
-    setHasHydrated(true);
-    setBaseDate(new Date());
-  }, []);
+  }, [baseDate]);
 
   const getClassForValue = (value: HeatmapValue | null): string => {
     if (!value || value.count === 0) {
