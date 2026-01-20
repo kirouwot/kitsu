@@ -1,6 +1,6 @@
 import { Episode } from "@/types/episodes";
-import { BackendEpisode } from "./common";
-import { assertString, assertNumber, assertOptional } from "@/lib/contract-guards";
+import { BackendEpisode, isBackendEpisode } from "./common";
+import { assertString, assertNumber, assertOptional, assertArray } from "@/lib/contract-guards";
 
 /**
  * Maps BackendEpisode to Episode
@@ -18,4 +18,18 @@ export function mapBackendEpisodeToEpisode(dto: BackendEpisode): Episode {
     number: dto.number,
     isFiller: false,
   };
+}
+
+/**
+ * Maps array of unknown data to Episode array
+ * This is the ONLY function that query layer should use for mapping episode arrays
+ */
+export function mapEpisodeArrayToEpisodeArray(data: unknown): Episode[] {
+  assertArray(data, "EpisodeArray");
+  return data.map((item) => {
+    if (!isBackendEpisode(item)) {
+      throw new Error("Invalid episode data in array");
+    }
+    return mapBackendEpisodeToEpisode(item);
+  });
 }
