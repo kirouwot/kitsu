@@ -35,7 +35,7 @@ class RoleRepository:
     async def list_all(self, include_inactive: bool = False) -> list[Role]:
         query = select(Role)
         if not include_inactive:
-            query = query.where(Role.is_active == True)
+            query = query.where(Role.is_active)
         result = await self.session.execute(query)
         return list(result.scalars().all())
 
@@ -87,6 +87,6 @@ class RoleRepository:
             select(Role)
             .join(UserRole, UserRole.role_id == Role.id)
             .where(UserRole.user_id == user_id)
-            .where(Role.is_active == True)
+            .where(Role.is_active)
         )
         return list(result.scalars().all())

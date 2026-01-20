@@ -61,7 +61,7 @@ class PermissionRepository:
             .join(Role, Role.id == RolePermission.role_id)
             .join(UserRole, UserRole.role_id == Role.id)
             .where(UserRole.user_id == user_id)
-            .where(Role.is_active == True)
+            .where(Role.is_active)
             .distinct()
         )
         return list(result.scalars().all())

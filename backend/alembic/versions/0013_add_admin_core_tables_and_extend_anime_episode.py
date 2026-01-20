@@ -27,7 +27,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('id', name=op.f('pk_roles')),
         sa.UniqueConstraint('name', name=op.f('uq_roles_name'))
     )
-    op.create_index(op.f('ix_name'), 'roles', ['name'], unique=False)
+    op.create_index('ix_roles_name', 'roles', ['name'], unique=False)
     
     # Create permissions table
     op.create_table(
@@ -43,8 +43,8 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('id', name=op.f('pk_permissions')),
         sa.UniqueConstraint('name', name=op.f('uq_permissions_name'))
     )
-    op.create_index(op.f('ix_name'), 'permissions', ['name'], unique=False)
-    op.create_index(op.f('ix_resource'), 'permissions', ['resource'], unique=False)
+    op.create_index('ix_permissions_name', 'permissions', ['name'], unique=False)
+    op.create_index('ix_permissions_resource', 'permissions', ['resource'], unique=False)
     
     # Create role_permissions table
     op.create_table(
@@ -57,8 +57,8 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['permission_id'], ['permissions.id'], name=op.f('fk_role_permissions_permission_id_permissions'), ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id', name=op.f('pk_role_permissions'))
     )
-    op.create_index(op.f('ix_role_id'), 'role_permissions', ['role_id'], unique=False)
-    op.create_index(op.f('ix_permission_id'), 'role_permissions', ['permission_id'], unique=False)
+    op.create_index('ix_role_permissions_role_id', 'role_permissions', ['role_id'], unique=False)
+    op.create_index('ix_role_permissions_permission_id', 'role_permissions', ['permission_id'], unique=False)
     
     # Create user_roles table
     op.create_table(
@@ -73,8 +73,8 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['granted_by'], ['users.id'], name=op.f('fk_user_roles_granted_by_users'), ondelete='SET NULL'),
         sa.PrimaryKeyConstraint('id', name=op.f('pk_user_roles'))
     )
-    op.create_index(op.f('ix_user_id'), 'user_roles', ['user_id'], unique=False)
-    op.create_index(op.f('ix_role_id'), 'user_roles', ['role_id'], unique=False)
+    op.create_index('ix_user_roles_user_id', 'user_roles', ['user_id'], unique=False)
+    op.create_index('ix_user_roles_role_id', 'user_roles', ['role_id'], unique=False)
     
     # Create audit_logs table
     op.create_table(
@@ -94,12 +94,12 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['actor_id'], ['users.id'], name=op.f('fk_audit_logs_actor_id_users'), ondelete='SET NULL'),
         sa.PrimaryKeyConstraint('id', name=op.f('pk_audit_logs'))
     )
-    op.create_index(op.f('ix_actor_id'), 'audit_logs', ['actor_id'], unique=False)
-    op.create_index(op.f('ix_actor_type'), 'audit_logs', ['actor_type'], unique=False)
-    op.create_index(op.f('ix_action'), 'audit_logs', ['action'], unique=False)
-    op.create_index(op.f('ix_entity_type'), 'audit_logs', ['entity_type'], unique=False)
-    op.create_index(op.f('ix_entity_id'), 'audit_logs', ['entity_id'], unique=False)
-    op.create_index(op.f('ix_created_at'), 'audit_logs', ['created_at'], unique=False)
+    op.create_index('ix_audit_logs_actor_id', 'audit_logs', ['actor_id'], unique=False)
+    op.create_index('ix_audit_logs_actor_type', 'audit_logs', ['actor_type'], unique=False)
+    op.create_index('ix_audit_logs_action', 'audit_logs', ['action'], unique=False)
+    op.create_index('ix_audit_logs_entity_type', 'audit_logs', ['entity_type'], unique=False)
+    op.create_index('ix_audit_logs_entity_id', 'audit_logs', ['entity_id'], unique=False)
+    op.create_index('ix_audit_logs_created_at', 'audit_logs', ['created_at'], unique=False)
     
     # Extend anime table with ownership, locks, and soft delete
     op.add_column('anime', sa.Column('state', sa.String(length=50), server_default='draft', nullable=False))
@@ -117,8 +117,8 @@ def upgrade() -> None:
     op.add_column('anime', sa.Column('delete_reason', sa.Text(), nullable=True))
     op.add_column('anime', sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False))
     
-    op.create_index(op.f('ix_state'), 'anime', ['state'], unique=False)
-    op.create_index(op.f('ix_is_deleted'), 'anime', ['is_deleted'], unique=False)
+    op.create_index('ix_anime_state', 'anime', ['state'], unique=False)
+    op.create_index('ix_anime_is_deleted', 'anime', ['is_deleted'], unique=False)
     op.create_foreign_key(op.f('fk_anime_created_by_users'), 'anime', 'users', ['created_by'], ['id'], ondelete='SET NULL')
     op.create_foreign_key(op.f('fk_anime_updated_by_users'), 'anime', 'users', ['updated_by'], ['id'], ondelete='SET NULL')
     op.create_foreign_key(op.f('fk_anime_locked_by_users'), 'anime', 'users', ['locked_by'], ['id'], ondelete='SET NULL')
@@ -139,7 +139,7 @@ def upgrade() -> None:
     op.add_column('episodes', sa.Column('delete_reason', sa.Text(), nullable=True))
     op.add_column('episodes', sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False))
     
-    op.create_index(op.f('ix_is_deleted'), 'episodes', ['is_deleted'], unique=False)
+    op.create_index('ix_episodes_is_deleted', 'episodes', ['is_deleted'], unique=False)
     op.create_foreign_key(op.f('fk_episodes_created_by_users'), 'episodes', 'users', ['created_by'], ['id'], ondelete='SET NULL')
     op.create_foreign_key(op.f('fk_episodes_updated_by_users'), 'episodes', 'users', ['updated_by'], ['id'], ondelete='SET NULL')
     op.create_foreign_key(op.f('fk_episodes_locked_by_users'), 'episodes', 'users', ['locked_by'], ['id'], ondelete='SET NULL')
@@ -153,7 +153,7 @@ def downgrade() -> None:
     op.drop_constraint(op.f('fk_episodes_locked_by_users'), 'episodes', type_='foreignkey')
     op.drop_constraint(op.f('fk_episodes_updated_by_users'), 'episodes', type_='foreignkey')
     op.drop_constraint(op.f('fk_episodes_created_by_users'), 'episodes', type_='foreignkey')
-    op.drop_index(op.f('ix_is_deleted'), table_name='episodes')
+    op.drop_index('ix_episodes_is_deleted', table_name='episodes')
     op.drop_column('episodes', 'updated_at')
     op.drop_column('episodes', 'delete_reason')
     op.drop_column('episodes', 'deleted_by')
@@ -173,8 +173,8 @@ def downgrade() -> None:
     op.drop_constraint(op.f('fk_anime_locked_by_users'), 'anime', type_='foreignkey')
     op.drop_constraint(op.f('fk_anime_updated_by_users'), 'anime', type_='foreignkey')
     op.drop_constraint(op.f('fk_anime_created_by_users'), 'anime', type_='foreignkey')
-    op.drop_index(op.f('ix_is_deleted'), table_name='anime')
-    op.drop_index(op.f('ix_state'), table_name='anime')
+    op.drop_index('ix_anime_is_deleted', table_name='anime')
+    op.drop_index('ix_anime_state', table_name='anime')
     op.drop_column('anime', 'updated_at')
     op.drop_column('anime', 'delete_reason')
     op.drop_column('anime', 'deleted_by')
@@ -191,29 +191,29 @@ def downgrade() -> None:
     op.drop_column('anime', 'state')
     
     # Drop audit_logs table
-    op.drop_index(op.f('ix_created_at'), table_name='audit_logs')
-    op.drop_index(op.f('ix_entity_id'), table_name='audit_logs')
-    op.drop_index(op.f('ix_entity_type'), table_name='audit_logs')
-    op.drop_index(op.f('ix_action'), table_name='audit_logs')
-    op.drop_index(op.f('ix_actor_type'), table_name='audit_logs')
-    op.drop_index(op.f('ix_actor_id'), table_name='audit_logs')
+    op.drop_index('ix_audit_logs_created_at', table_name='audit_logs')
+    op.drop_index('ix_audit_logs_entity_id', table_name='audit_logs')
+    op.drop_index('ix_audit_logs_entity_type', table_name='audit_logs')
+    op.drop_index('ix_audit_logs_action', table_name='audit_logs')
+    op.drop_index('ix_audit_logs_actor_type', table_name='audit_logs')
+    op.drop_index('ix_audit_logs_actor_id', table_name='audit_logs')
     op.drop_table('audit_logs')
     
     # Drop user_roles table
-    op.drop_index(op.f('ix_role_id'), table_name='user_roles')
-    op.drop_index(op.f('ix_user_id'), table_name='user_roles')
+    op.drop_index('ix_user_roles_role_id', table_name='user_roles')
+    op.drop_index('ix_user_roles_user_id', table_name='user_roles')
     op.drop_table('user_roles')
     
     # Drop role_permissions table
-    op.drop_index(op.f('ix_permission_id'), table_name='role_permissions')
-    op.drop_index(op.f('ix_role_id'), table_name='role_permissions')
+    op.drop_index('ix_role_permissions_permission_id', table_name='role_permissions')
+    op.drop_index('ix_role_permissions_role_id', table_name='role_permissions')
     op.drop_table('role_permissions')
     
     # Drop permissions table
-    op.drop_index(op.f('ix_resource'), table_name='permissions')
-    op.drop_index(op.f('ix_name'), table_name='permissions')
+    op.drop_index('ix_permissions_resource', table_name='permissions')
+    op.drop_index('ix_permissions_name', table_name='permissions')
     op.drop_table('permissions')
     
     # Drop roles table
-    op.drop_index(op.f('ix_name'), table_name='roles')
+    op.drop_index('ix_roles_name', table_name='roles')
     op.drop_table('roles')

@@ -10,6 +10,7 @@ This test suite verifies the core admin functionality including:
 import pytest
 import uuid
 from datetime import datetime, timezone
+from fastapi import HTTPException
 
 from app.models.role import Role
 from app.models.permission import Permission
@@ -203,8 +204,6 @@ class TestLockService:
     
     def test_check_lock_fully_locked(self):
         """Test that fully locked entity prevents updates."""
-        from fastapi import HTTPException
-        
         anime = Anime(
             title="Test Anime",
             is_locked=True,
@@ -224,8 +223,6 @@ class TestLockService:
     
     def test_check_lock_partially_locked(self):
         """Test partially locked entity."""
-        from fastapi import HTTPException
-        
         anime = Anime(
             title="Test Anime",
             is_locked=True,
@@ -271,8 +268,6 @@ class TestLockService:
     
     def test_check_parser_update_manual_content(self):
         """Test parser cannot update manual content."""
-        from fastapi import HTTPException
-        
         anime = Anime(
             title="Test Anime",
             source="manual"
@@ -289,8 +284,6 @@ class TestLockService:
     
     def test_check_parser_update_locked_content(self):
         """Test parser cannot update locked content."""
-        from fastapi import HTTPException
-        
         anime = Anime(
             title="Test Anime",
             source="parser",

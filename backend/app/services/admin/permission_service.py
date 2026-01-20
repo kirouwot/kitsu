@@ -1,5 +1,6 @@
 import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import HTTPException, status
 
 from ...crud.permission import PermissionRepository
 from ...models.user import User
@@ -55,7 +56,6 @@ class PermissionService:
     async def require_permission(self, user: User | None, permission_name: str) -> None:
         """Raise an exception if the user doesn't have the required permission."""
         if not await self.has_permission(user, permission_name):
-            from fastapi import HTTPException, status
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Permission denied: {permission_name} required"

@@ -3,7 +3,6 @@ Seed data for default roles and permissions in the admin core system.
 This script should be run once after the initial migration to populate the database.
 
 Usage:
-    cd /home/runner/work/Kitsu/Kitsu/backend
     python -m scripts.seed_admin_core
 """
 import asyncio

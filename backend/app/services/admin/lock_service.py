@@ -25,7 +25,7 @@ class LockService:
             return
 
         # If no locked_fields specified, entire entity is locked
-        if entity.locked_fields is None or len(entity.locked_fields) == 0:
+        if not entity.locked_fields:
             if has_override_permission:
                 return
             raise HTTPException(
