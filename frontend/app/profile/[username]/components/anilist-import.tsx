@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { useGetAnilistAnimes } from "@/mutation/get-anilist-animes";
 import { toast } from "sonner";
 import { AnilistMediaList } from "@/types/anilist-animes";
-import { api } from "@/lib/api";
+import { importAniListAnimes } from "@/external/proxy/proxy.adapter";
 import useBookMarks from "@/hooks/use-get-bookmark";
 import { Badge } from "@/components/ui/badge";
 
@@ -66,9 +66,10 @@ function AnilistImport({ disabled = false }: AnilistImportProps) {
     setIsLoading(true);
 
     try {
-      const { data } = await api.post("/api/import/anilist", {
-        animes,
-      });
+      // Component calls ONLY adapter functions
+      // No knowledge of URLs, axios, retry logic, or external API contracts
+      const data = await importAniListAnimes(animes);
+      
       if (!data || !data.animes) {
         toast.error("No anime found", {
           style: { background: "red" },
