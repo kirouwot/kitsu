@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..domain.ports.watch_progress import (
@@ -121,6 +122,25 @@ class WatchProgressRepository(WatchProgressRepositoryPort):
             )
             await self._session.commit()
             return progress
+        except IntegrityError:
+            await self._session.rollback()
+            existing = await get_watch_progress(self._session, user_id, anime_id)
+            if existing is None:
+                raise
+            try:
+                updated = await update_watch_progress(
+                    self._session,
+                    existing,
+                    episode,
+                    position_seconds,
+                    progress_percent,
+                    last_watched_at=last_watched_at,
+                )
+                await self._session.commit()
+                return updated
+            except Exception:
+                await self._session.rollback()
+                raise
         except Exception:
             await self._session.rollback()
             raise

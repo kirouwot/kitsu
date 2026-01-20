@@ -36,6 +36,10 @@ async def get_watch_progress(
     return await watch_repo.get(user_id, anime_id)
 
 
+def _progress_id_for(user_id: uuid.UUID, anime_id: uuid.UUID) -> uuid.UUID:
+    return uuid.uuid5(uuid.NAMESPACE_URL, f"kitsu.watch-progress:{user_id}:{anime_id}")
+
+
 async def _apply_watch_progress(
     watch_repo: WatchProgressRepository,
     user_id: uuid.UUID,
@@ -122,7 +126,11 @@ async def update_progress(
 
     existing_progress = await get_watch_progress(watch_repo, user_id, anime_id)
     now = datetime.now(timezone.utc)
-    progress_id = existing_progress.id if existing_progress else uuid.uuid4()
+    progress_id = (
+        existing_progress.id
+        if existing_progress
+        else _progress_id_for(user_id, anime_id)
+    )
     created_at = existing_progress.created_at if existing_progress else now
 
     result = WatchProgressRead(

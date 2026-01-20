@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import Any, TypeVar, cast
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 from app.crud import watch_progress as watch_progress_crud
 from app.crud.watch_progress import WatchProgressRepository
@@ -156,4 +157,59 @@ async def test_watch_progress_repository_rolls_back_on_error(
         await repo.add(uuid.uuid4(), uuid.uuid4(), 1, 10, 20.0)
 
     assert session.commit_calls == 0
+    assert session.rollback_calls == 1
+
+
+@pytest.mark.anyio
+async def test_watch_progress_repository_add_conflict_updates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = DummySession()
+    existing = object()
+    update_sentinel = object()
+
+    async def fake_add(*_args, **_kwargs) -> object:  # type: ignore[no-untyped-def]
+        raise IntegrityError("conflict", {}, Exception("dup"))
+
+    async def fake_get(
+        session_arg: DummySession, user_id: uuid.UUID, anime_id: uuid.UUID
+    ) -> object:
+        assert session_arg is session
+        assert user_id == uuid.UUID(int=1)
+        assert anime_id == uuid.UUID(int=2)
+        return existing
+
+    async def fake_update(
+        session_arg: DummySession,
+        progress: object,
+        episode: int,
+        position_seconds: int | None,
+        progress_percent: float | None,
+        last_watched_at: datetime | None = None,
+    ) -> object:
+        assert session_arg is session
+        assert progress is existing
+        assert episode == 3
+        assert position_seconds == 10
+        assert progress_percent == 55.0
+        assert last_watched_at == datetime(2024, 5, 1, tzinfo=timezone.utc)
+        return update_sentinel
+
+    monkeypatch.setattr(watch_progress_crud, "create_watch_progress", fake_add)
+    monkeypatch.setattr(watch_progress_crud, "get_watch_progress", fake_get)
+    monkeypatch.setattr(watch_progress_crud, "update_watch_progress", fake_update)
+
+    repo = WatchProgressRepository(session)
+
+    result = await repo.add(
+        uuid.UUID(int=1),
+        uuid.UUID(int=2),
+        3,
+        10,
+        55.0,
+        last_watched_at=datetime(2024, 5, 1, tzinfo=timezone.utc),
+    )
+
+    assert result is update_sentinel
+    assert session.commit_calls == 1
     assert session.rollback_calls == 1

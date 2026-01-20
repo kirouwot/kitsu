@@ -1,6 +1,8 @@
 import uuid
 from datetime import datetime, timezone
 
+from sqlalchemy.exc import IntegrityError
+
 from ...background import Job, default_job_runner
 from ...domain.ports.favorite import (
     FavoriteData,
@@ -19,6 +21,10 @@ async def get_favorite(
     favorite_repo: FavoriteRepository, user_id: uuid.UUID, anime_id: uuid.UUID
 ) -> FavoriteData | None:
     return await favorite_repo.get(user_id, anime_id)
+
+
+def _favorite_id_for(user_id: uuid.UUID, anime_id: uuid.UUID) -> uuid.UUID:
+    return uuid.uuid5(uuid.NAMESPACE_URL, f"kitsu.favorite:{user_id}:{anime_id}")
 
 
 async def _apply_add_favorite(
@@ -42,6 +48,10 @@ async def _apply_add_favorite(
                 created_at=created_at,
             )
         await favorite_repo.commit()
+    except IntegrityError:
+        await favorite_repo.rollback()
+        if await get_favorite(favorite_repo, user_id, anime_id) is None:
+            raise
     except Exception:
         await favorite_repo.rollback()
         raise
@@ -79,7 +89,7 @@ async def add_favorite(
     if existing:
         raise ConflictError("Favorite already exists")
 
-    favorite_id = uuid.uuid4()
+    favorite_id = _favorite_id_for(user_id, anime_id)
     created_at = datetime.now(timezone.utc)
     result = FavoriteRead(id=favorite_id, anime_id=anime_id, created_at=created_at)
 
