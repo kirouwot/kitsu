@@ -1,9 +1,10 @@
 import os
 
 import httpx
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 import pytest
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 # Ensure required environment variables are present for module imports.
 os.environ.setdefault("SECRET_KEY", "test")
@@ -40,7 +41,7 @@ def make_status_error(code: int) -> httpx.HTTPStatusError:
 def make_app() -> TestClient:
     app = FastAPI()
     app.include_router(router)
-    app.add_exception_handler(HTTPException, handle_http_exception)
+    app.add_exception_handler(StarletteHTTPException, handle_http_exception)
     return TestClient(app)
 
 
