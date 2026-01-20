@@ -53,15 +53,25 @@ def db_session():
 @pytest.fixture()
 def admin_router(monkeypatch: pytest.MonkeyPatch):
     dummy = types.ModuleType("app.dependencies")
+    
+    # Create a mock user
+    mock_user = types.SimpleNamespace()
+    mock_user.id = "test-user-id"
+    mock_user.role = "admin"
+    mock_user.is_admin = True
 
     async def get_db():  # pragma: no cover - stub
         yield None
 
     async def get_current_role():  # pragma: no cover - stub
         return "admin"
+    
+    async def get_current_user():  # pragma: no cover - stub
+        return mock_user
 
     dummy.get_db = get_db
     dummy.get_current_role = get_current_role
+    dummy.get_current_user = get_current_user
     monkeypatch.setitem(sys.modules, "app.dependencies", dummy)
     module = importlib.import_module("app.parser.admin.router")
     return importlib.reload(module)
