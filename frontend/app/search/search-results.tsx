@@ -149,7 +149,7 @@ const SearchResults = () => {
           <ToggleGroup
             type="multiple"
             className="flex flex-wrap justify-start gap-2 mt-4"
-            value={filters.genres?.split(",") || []}
+            value={filters.genres?.split(",")}
             onValueChange={(value) => {
               onChange("genres", value.filter(Boolean).join(","));
             }}
