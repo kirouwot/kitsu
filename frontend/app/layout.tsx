@@ -12,6 +12,11 @@ import { ThemeProvider } from "@/components/theme-provider";
 
 import { Toaster } from "@/components/ui/sonner";
 import StoreProvider from "@/providers/store-provider";
+import { assertRenderMode } from "@/lib/render-mode";
+
+// Declare render mode for root layout
+export const RENDER_MODE = "server" as const;
+assertRenderMode(RENDER_MODE);
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
