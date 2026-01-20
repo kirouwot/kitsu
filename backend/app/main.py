@@ -1,5 +1,6 @@
 import logging
 import os
+from typing import cast
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -214,7 +215,7 @@ async def handle_http_exception(
 ) -> JSONResponse:
     payload = _ensure_canonical_error_format(exc.detail)
     if payload is not None:
-        error = payload["error"]
+        error = cast(dict[str, str], payload["error"])
         _log_error(request, exc.status_code, error["code"], error["message"])
         return JSONResponse(status_code=exc.status_code, content=payload)
     safe_message = SAFE_HTTP_MESSAGES.get(
