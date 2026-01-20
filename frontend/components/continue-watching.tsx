@@ -34,7 +34,7 @@ type BackendAnime = {
 type ContinueWatchingItem = {
   id: string;
   title: string;
-  poster: string;
+  poster: string; // Always non-null due to PLACEHOLDER_POSTER fallback
   episode: number;
   progressPercent: number;
   isCompleted: boolean;
@@ -105,7 +105,8 @@ const ContinueWatching = () => {
           return {
             id: item.anime_id,
             title: anime.title,
-            poster: anime.poster,
+            // Fallback to placeholder for missing posters (UI concern, not API contract violation)
+            poster: anime.poster || PLACEHOLDER_POSTER,
             episode: item.episode,
             progressPercent,
             isCompleted,

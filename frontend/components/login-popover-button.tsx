@@ -6,7 +6,6 @@ import { Input } from "./ui/input";
 import { toast } from "sonner";
 import { useAuthSelector } from "@/store/auth-store";
 import { api } from "@/lib/api";
-import { normalizeApiError } from "@/lib/auth-errors";
 
 type FormData = {
   email: string;
