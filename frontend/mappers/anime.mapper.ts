@@ -103,7 +103,7 @@ export function mapBackendAnimeToSpotlightAnime(dto: BackendAnime, rank: number)
 /**
  * Maps BackendAnime to TopUpcomingAnime
  * PURE function - no fallbacks, no optional chaining
- * TopUpcomingAnime.type is string, so we return status as-is or throw if missing
+ * TopUpcomingAnime.type is string, so we convert Type enum to string
  */
 export function mapBackendAnimeToTopUpcomingAnime(dto: BackendAnime): TopUpcomingAnime {
   if (!dto.id) throw new Error("Anime.id is required");
@@ -120,7 +120,7 @@ export function mapBackendAnimeToTopUpcomingAnime(dto: BackendAnime): TopUpcomin
     jname: dto.title_original || dto.title,
     poster: PLACEHOLDER_POSTER,
     duration: "",
-    type,
+    type: type as string,
     rating: null,
     episodes: { sub: null, dub: null },
   };
