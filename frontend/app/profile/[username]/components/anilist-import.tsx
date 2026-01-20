@@ -40,17 +40,10 @@ function AnilistImport({ disabled = false }: AnilistImportProps) {
     }
     setIsLoading(true);
 
-    try {
-      const data = await getAnilistAnime.mutateAsync(username);
-      if (data) {
-        setAnimes(data.MediaListCollection.lists);
-        setStep(2);
-      }
-    } catch (error) {
-      console.error("Error importing Anilist anime:", error);
-      toast.error("Failed to import Anilist anime", {
-        style: { background: "red" },
-      });
+    const data = await getAnilistAnime.mutateAsync(username);
+    if (data) {
+      setAnimes(data.MediaListCollection.lists);
+      setStep(2);
     }
 
     setIsLoading(false);
@@ -65,41 +58,26 @@ function AnilistImport({ disabled = false }: AnilistImportProps) {
     }
     setIsLoading(true);
 
-    try {
-      // Component calls ONLY adapter functions
-      // No knowledge of URLs, axios, retry logic, or external API contracts
-      const data = await importAniListAnimes(animes);
-      
-      if (!data || !data.animes) {
-        toast.error("No anime found", {
-          style: { background: "red" },
-        });
-        setIsLoading(false);
-        return;
-      }
+    // Component calls ONLY adapter functions
+    // No knowledge of URLs, axios, retry logic, or external API contracts
+    const data = await importAniListAnimes(animes);
 
-      const animeList = data.animes;
-      for (const anime of animeList) {
-        await bookmark.createOrUpdateBookMark(
-          anime.id,
-          anime.title,
-          anime.thumbnail,
-          anime.status,
-          false,
-        );
-      }
-
-      toast.success("Anilist anime imported successfully", {
-        style: { background: "green" },
-      });
-      setOpen(false);
-      reset();
-    } catch (error) {
-      console.error("Error importing Anilist anime:", error);
-      toast.error("Failed to import Anilist anime", {
-        style: { background: "red" },
-      });
+    const animeList = data.animes;
+    for (const anime of animeList) {
+      await bookmark.createOrUpdateBookMark(
+        anime.id,
+        anime.title,
+        anime.thumbnail,
+        anime.status,
+        false,
+      );
     }
+
+    toast.success("Anilist anime imported successfully", {
+      style: { background: "green" },
+    });
+    setOpen(false);
+    reset();
 
     setIsLoading(false);
   };
