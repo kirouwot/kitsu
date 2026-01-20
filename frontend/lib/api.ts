@@ -153,6 +153,8 @@ export const getClientApi = (): AxiosInstance => {
 
 export const getServerApi = (): AxiosInstance => createApiClient();
 
-export const api = getClientApi();
+const isBrowser = typeof window !== "undefined";
+
+export const api = (isBrowser ? getClientApi() : undefined) as AxiosInstance;
 
 export { setAuthFailureHandler };
