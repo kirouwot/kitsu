@@ -2,7 +2,7 @@ import { queryKeys } from "@/constants/query-keys";
 import { IEpisodeServers } from "@/types/episodes";
 import { useQuery } from "react-query";
 import { api } from "@/lib/api";
-import { assertApiSuccessResponse } from "@/lib/contract-guards";
+import { assertExternalApiShape, assertFieldExists } from "@/lib/contract-guards";
 
 const getEpisodeServers = async (episodeId: string) => {
   const fallback: IEpisodeServers = {
@@ -22,11 +22,9 @@ const getEpisodeServers = async (episodeId: string) => {
     timeout: 10000,
   });
   
-  assertApiSuccessResponse(res.data);
-  
-  if (!res.data.data) {
-    throw new Error("Contract violation: episode servers response missing data field");
-  }
+  // External API - proxy/third-party, schema not guaranteed
+  assertExternalApiShape(res.data, "GET /api/episode/servers");
+  assertFieldExists(res.data, 'data', "GET /api/episode/servers");
   
   return res.data.data as IEpisodeServers;
 };

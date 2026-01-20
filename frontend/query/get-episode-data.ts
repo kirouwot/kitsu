@@ -2,7 +2,7 @@ import { queryKeys } from "@/constants/query-keys";
 import { IEpisodeSource } from "@/types/episodes";
 import { useQuery } from "react-query";
 import { api } from "@/lib/api";
-import { assertApiSuccessResponse } from "@/lib/contract-guards";
+import { assertExternalApiShape, assertFieldExists } from "@/lib/contract-guards";
 
 const getEpisodeData = async (
   episodeId: string,
@@ -30,11 +30,9 @@ const getEpisodeData = async (
     timeout: 10000,
   });
   
-  assertApiSuccessResponse(res.data);
-  
-  if (!res.data.data) {
-    throw new Error("Contract violation: episode sources response missing data field");
-  }
+  // External API - proxy/third-party, schema not guaranteed
+  assertExternalApiShape(res.data, "GET /api/episode/sources");
+  assertFieldExists(res.data, 'data', "GET /api/episode/sources");
   
   return res.data.data as IEpisodeSource;
 };

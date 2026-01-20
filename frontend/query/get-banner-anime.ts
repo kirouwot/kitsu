@@ -1,7 +1,7 @@
 import { queryKeys } from "@/constants/query-keys";
 import { api } from "@/lib/api";
 import { useQuery } from "react-query";
-import { assertApiSuccessResponse } from "@/lib/contract-guards";
+import { assertExternalApiShape, assertFieldExists } from "@/lib/contract-guards";
 
 interface IAnimeBanner {
   Media: {
@@ -29,11 +29,9 @@ const getAnimeBanner = async (anilistID: number) => {
     { timeout: 10000 },
   );
   
-  assertApiSuccessResponse(res.data);
-  
-  if (!res.data.data) {
-    throw new Error("Contract violation: anilist banner response missing data field");
-  }
+  // External API - GraphQL AniList, schema not guaranteed
+  assertExternalApiShape(res.data, "POST graphql.anilist.co");
+  assertFieldExists(res.data, 'data', "POST graphql.anilist.co");
   
   return res.data.data as IAnimeBanner;
 };

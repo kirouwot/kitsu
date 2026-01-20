@@ -2,18 +2,16 @@ import { queryKeys } from "@/constants/query-keys";
 import { api } from "@/lib/api";
 import { IAnimeSchedule } from "@/types/anime-schedule";
 import { useQuery } from "react-query";
-import { assertApiSuccessResponse } from "@/lib/contract-guards";
+import { assertExternalApiShape, assertFieldExists } from "@/lib/contract-guards";
 
 const getAnimeSchedule = async (date: string) => {
   const queryParams = date ? `?date=${date}` : "";
 
   const res = await api.get("/api/schedule" + queryParams, { timeout: 10000 });
   
-  assertApiSuccessResponse(res.data);
-  
-  if (!res.data.data) {
-    throw new Error("Contract violation: anime schedule response missing data field");
-  }
+  // External API - proxy/third-party, schema not guaranteed
+  assertExternalApiShape(res.data, "GET /api/schedule");
+  assertFieldExists(res.data, 'data', "GET /api/schedule");
   
   return res.data.data as IAnimeSchedule;
 };

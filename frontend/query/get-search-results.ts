@@ -5,7 +5,7 @@ import { useQuery } from "react-query";
 import { normalizeSearchParams } from "./search-normalize";
 import { BackendAnime } from "@/mappers/common";
 import { mapBackendAnimeToIAnime } from "@/mappers/anime.mapper";
-import { assertArrayResponse } from "@/lib/contract-guards";
+import { assertInternalArrayResponse } from "@/lib/contract-guards";
 
 const searchAnime = async (params: SearchAnimeParams) => {
   const limit = 20;
@@ -16,7 +16,8 @@ const searchAnime = async (params: SearchAnimeParams) => {
     params: { q: params.q, limit, offset },
   });
 
-  assertArrayResponse(res.data);
+  // Internal API - Kitsu backend contract guaranteed
+  assertInternalArrayResponse(res.data, "GET /search/anime");
   const animes = (res.data as BackendAnime[]).map(mapBackendAnimeToIAnime);
 
   const hasNextPage = animes.length === limit;

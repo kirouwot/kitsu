@@ -8,7 +8,7 @@ import {
   mapBackendAnimeToSpotlightAnime,
   mapBackendAnimeToTopUpcomingAnime
 } from "@/mappers/anime.mapper";
-import { assertArrayResponse } from "@/lib/contract-guards";
+import { assertInternalArrayResponse } from "@/lib/contract-guards";
 
 const getHomePageData: QueryFunction<
   IAnimeData,
@@ -35,7 +35,8 @@ const getHomePageData: QueryFunction<
     params: { limit: 20, offset: 0 },
   });
   
-  assertArrayResponse(res.data);
+  // Internal API - Kitsu backend contract guaranteed
+  assertInternalArrayResponse(res.data, "GET /anime");
   
   const mapped = res.data.map(mapBackendAnimeToIAnime);
   

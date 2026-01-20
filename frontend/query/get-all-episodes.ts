@@ -4,14 +4,15 @@ import { IEpisodes } from "@/types/episodes";
 import { useQuery } from "react-query";
 import { BackendRelease, BackendEpisode } from "@/mappers/common";
 import { mapBackendEpisodeToEpisode } from "@/mappers/episode.mapper";
-import { assertArrayResponse, assertString } from "@/lib/contract-guards";
+import { assertInternalArrayResponse, assertString } from "@/lib/contract-guards";
 
 const getAllEpisodes = async (animeId: string) => {
   const releasesRes = await api.get<BackendRelease[]>("/releases", {
     params: { limit: 100, offset: 0 },
   });
   
-  assertArrayResponse(releasesRes.data);
+  // Internal API - Kitsu backend contract guaranteed
+  assertInternalArrayResponse(releasesRes.data, "GET /releases");
   const release = (releasesRes.data as BackendRelease[]).find(
     (item) => item.anime_id === animeId,
   );
@@ -26,7 +27,8 @@ const getAllEpisodes = async (animeId: string) => {
     params: { release_id: release.id },
   });
 
-  assertArrayResponse(res.data);
+  // Internal API - Kitsu backend contract guaranteed
+  assertInternalArrayResponse(res.data, "GET /episodes");
   const episodes = (res.data as BackendEpisode[]).map(mapBackendEpisodeToEpisode);
 
   return { totalEpisodes: episodes.length, episodes } as IEpisodes;

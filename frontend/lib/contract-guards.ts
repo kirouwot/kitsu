@@ -3,7 +3,7 @@
  * 
  * This module provides fail-fast contract validation for API responses.
  * All guards:
- * - Throw Error on contract violation
+ * - Throw ContractError on contract violation
  * - Are synchronous and deterministic
  * - Have no side effects
  * - Do NOT use optional chaining
@@ -11,83 +11,134 @@
  */
 
 /**
- * Asserts that value is an object (not null, not array)
- * @throws Error if value is not an object
+ * ContractError - unified error type for all contract violations
+ * Format: [ContractError] path: expected type, got actual
  */
-export function assertObject(value: unknown, name: string): asserts value is Record<string, unknown> {
+export class ContractError extends Error {
+  constructor(path: string, expected: string, actual: string) {
+    super(`[ContractError] ${path}: expected ${expected}, got ${actual}`);
+    this.name = 'ContractError';
+  }
+}
+
+/**
+ * Helper to get type name for error messages
+ */
+function getTypeName(value: unknown): string {
+  if (value === null) return 'null';
+  if (value === undefined) return 'undefined';
+  if (Array.isArray(value)) return 'array';
+  return typeof value;
+}
+
+/**
+ * Asserts that value is an object (not null, not array)
+ * @throws ContractError if value is not an object
+ */
+export function assertObject(value: unknown, path: string): asserts value is Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    throw new Error(`Contract violation: ${name} must be an object, got ${typeof value}`);
+    throw new ContractError(path, 'object', getTypeName(value));
   }
 }
 
 /**
  * Asserts that value is a string
- * @throws Error if value is not a string
+ * @throws ContractError if value is not a string
  */
-export function assertString(value: unknown, field: string): asserts value is string {
+export function assertString(value: unknown, path: string): asserts value is string {
   if (typeof value !== 'string') {
-    throw new Error(`Contract violation: ${field} must be string, got ${typeof value}`);
+    throw new ContractError(path, 'string', getTypeName(value));
   }
 }
 
 /**
  * Asserts that value is a number
- * @throws Error if value is not a number
+ * @throws ContractError if value is not a number
  */
-export function assertNumber(value: unknown, field: string): asserts value is number {
-  if (typeof value !== 'number' || Number.isNaN(value)) {
-    throw new Error(`Contract violation: ${field} must be number, got ${typeof value}`);
+export function assertNumber(value: unknown, path: string): asserts value is number {
+  if (typeof value !== 'number' || isNaN(value)) {
+    throw new ContractError(path, 'number', getTypeName(value));
   }
 }
 
 /**
  * Asserts that value is an array
- * @throws Error if value is not an array
+ * @throws ContractError if value is not an array
  */
-export function assertArray(value: unknown, field: string): asserts value is unknown[] {
+export function assertArray(value: unknown, path: string): asserts value is unknown[] {
   if (!Array.isArray(value)) {
-    throw new Error(`Contract violation: ${field} must be array, got ${typeof value}`);
+    throw new ContractError(path, 'array', getTypeName(value));
   }
 }
 
 /**
- * Validates optional fields - returns true if value is present and valid
+ * Validates optional fields with proper type narrowing
  * @param value - The value to validate
- * @param validator - Function that validates the value if present
- * @returns true if value is present and valid, false if null/undefined
- * @throws Error if value is present but invalid
+ * @param guard - Type guard function to validate the value if present
+ * @param path - Field path for error messages
+ * @returns T | undefined - the validated value or undefined if null/undefined
+ * @throws ContractError if value is present but invalid
  */
 export function assertOptional<T>(
   value: unknown,
-  validator: (value: unknown) => asserts value is T
-): value is T {
+  guard: (value: unknown) => asserts value is T,
+  path: string
+): T | undefined {
   if (value === null || value === undefined) {
-    return false;
+    return undefined;
   }
-  validator(value);
-  return true;
+  guard(value);
+  return value;
 }
 
 /**
- * Asserts API success response envelope
+ * Asserts internal API success response envelope (Kitsu backend)
  * Validates that data is an object and not null/undefined
- * @throws Error if response is not a valid success envelope
+ * @throws ContractError if response is not a valid success envelope
  */
-export function assertApiSuccessResponse(data: unknown): asserts data is Record<string, unknown> {
+export function assertInternalApiResponse(data: unknown, path: string = 'ApiResponse'): asserts data is Record<string, unknown> {
   if (data === null || data === undefined) {
-    throw new Error('Contract violation: API response data must not be null or undefined');
+    throw new ContractError(path, 'object', getTypeName(data));
   }
-  assertObject(data, 'API response data');
+  assertObject(data, path);
 }
 
 /**
- * Asserts API array response
+ * Asserts internal API array response (Kitsu backend)
  * Validates that data is an array and not null/undefined
- * @throws Error if response is not a valid array
+ * @throws ContractError if response is not a valid array
  */
-export function assertArrayResponse(data: unknown): asserts data is unknown[] {
+export function assertInternalArrayResponse(data: unknown, path: string = 'ApiResponse'): asserts data is unknown[] {
   if (data === null || data === undefined) {
-    throw new Error('Contract violation: API array response must not be null or undefined');
+    throw new ContractError(path, 'array', getTypeName(data));
   }
-  assertArray(data, 'API array response');
+  assertArray(data, path);
+}
+
+/**
+ * Asserts external API response shape (proxy/third-party APIs)
+ * Minimal validation - only checks data is an object, not null/undefined
+ * Does NOT enforce strict schema as external APIs are not guaranteed by backend
+ * @throws ContractError if response is not an object
+ */
+export function assertExternalApiShape(data: unknown, path: string = 'ExternalApiResponse'): asserts data is Record<string, unknown> {
+  if (data === null || data === undefined) {
+    throw new ContractError(path, 'object', getTypeName(data));
+  }
+  assertObject(data, path);
+}
+
+/**
+ * Asserts that a field exists in an object
+ * Used for external API responses where we only validate presence, not type
+ * @throws ContractError if field does not exist
+ */
+export function assertFieldExists<T extends Record<string, unknown>>(
+  obj: T,
+  field: string,
+  path: string
+): void {
+  if (!(field in obj)) {
+    throw new ContractError(`${path}.${field}`, 'field to exist', 'missing');
+  }
 }

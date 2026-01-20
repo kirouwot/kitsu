@@ -5,7 +5,7 @@ import { useQuery } from "react-query";
 import { PLACEHOLDER_POSTER } from "@/utils/constants";
 import { BackendAnime, BackendRelease } from "@/mappers/common";
 import { mapBackendReleaseToSeason } from "@/mappers/anime.mapper";
-import { assertApiSuccessResponse, assertArrayResponse, assertString, assertOptional, assertNumber } from "@/lib/contract-guards";
+import { assertInternalApiResponse, assertInternalArrayResponse, assertString, assertOptional, assertNumber } from "@/lib/contract-guards";
 
 const getAnimeDetails = async (animeId: string) => {
   const emptyDetails: IAnimeDetails = {
@@ -51,34 +51,25 @@ const getAnimeDetails = async (animeId: string) => {
     api.get<BackendRelease[]>("/releases", { params: { limit: 100, offset: 0 } }),
   ]);
 
-  assertApiSuccessResponse(animeRes.data);
+  // Internal API - Kitsu backend contract guaranteed
+  assertInternalApiResponse(animeRes.data, "GET /anime/:id");
   const anime = animeRes.data as BackendAnime;
   
   assertString(anime.id, "Anime.id");
   assertString(anime.title, "Anime.title");
 
-  assertArrayResponse(releasesRes.data);
+  // Internal API - Kitsu backend contract guaranteed
+  assertInternalArrayResponse(releasesRes.data, "GET /releases");
   const releases = (releasesRes.data as BackendRelease[]).filter((release) => release.anime_id === animeId);
 
   const seasons = releases.map((release, idx) => 
     mapBackendReleaseToSeason(release, idx === 0)
   );
 
-  const description: string = assertOptional(anime.description, (v) => assertString(v, "Anime.description"))
-    ? anime.description as string
-    : "";
-
-  const titleOriginal: string = assertOptional(anime.title_original, (v) => assertString(v, "Anime.title_original"))
-    ? anime.title_original as string
-    : anime.title;
-
-  const status: string = assertOptional(anime.status, (v) => assertString(v, "Anime.status"))
-    ? anime.status as string
-    : "Unknown";
-
-  const year: number | null = assertOptional(anime.year, (v) => assertNumber(v, "Anime.year"))
-    ? anime.year as number
-    : null;
+  const description = assertOptional(anime.description, assertString, "Anime.description") ?? "";
+  const titleOriginal = assertOptional(anime.title_original, assertString, "Anime.title_original") ?? anime.title;
+  const status = assertOptional(anime.status, assertString, "Anime.status") ?? "Unknown";
+  const year = assertOptional(anime.year, assertNumber, "Anime.year");
 
   return {
     ...emptyDetails,
