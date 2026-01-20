@@ -2,6 +2,7 @@ import { queryKeys } from "@/constants/query-keys";
 import { IEpisodeSource } from "@/types/episodes";
 import { useQuery } from "react-query";
 import { api } from "@/lib/api";
+import { assertApiSuccessResponse } from "@/lib/contract-guards";
 
 const getEpisodeData = async (
   episodeId: string,
@@ -28,6 +29,13 @@ const getEpisodeData = async (
     },
     timeout: 10000,
   });
+  
+  assertApiSuccessResponse(res.data);
+  
+  if (!res.data.data) {
+    throw new Error("Contract violation: episode sources response missing data field");
+  }
+  
   return res.data.data as IEpisodeSource;
 };
 

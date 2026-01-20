@@ -5,6 +5,7 @@ import { useQuery } from "react-query";
 import { PLACEHOLDER_POSTER } from "@/utils/constants";
 import { BackendAnime, BackendRelease } from "@/mappers/common";
 import { mapBackendReleaseToSeason } from "@/mappers/anime.mapper";
+import { assertApiSuccessResponse, assertArrayResponse, assertString, assertOptional, assertNumber } from "@/lib/contract-guards";
 
 const getAnimeDetails = async (animeId: string) => {
   const emptyDetails: IAnimeDetails = {
@@ -50,14 +51,34 @@ const getAnimeDetails = async (animeId: string) => {
     api.get<BackendRelease[]>("/releases", { params: { limit: 100, offset: 0 } }),
   ]);
 
-  const anime = animeRes.data;
-  const releases =
-    (releasesRes.data || []).filter((release) => release.anime_id === animeId) ||
-    [];
+  assertApiSuccessResponse(animeRes.data);
+  const anime = animeRes.data as BackendAnime;
+  
+  assertString(anime.id, "Anime.id");
+  assertString(anime.title, "Anime.title");
+
+  assertArrayResponse(releasesRes.data);
+  const releases = (releasesRes.data as BackendRelease[]).filter((release) => release.anime_id === animeId);
 
   const seasons = releases.map((release, idx) => 
     mapBackendReleaseToSeason(release, idx === 0)
   );
+
+  const description = assertOptional(anime.description, (v) => assertString(v, "Anime.description"))
+    ? anime.description
+    : "";
+
+  const titleOriginal = assertOptional(anime.title_original, (v) => assertString(v, "Anime.title_original"))
+    ? anime.title_original
+    : anime.title;
+
+  const status = assertOptional(anime.status, (v) => assertString(v, "Anime.status"))
+    ? anime.status
+    : "Unknown";
+
+  const year = assertOptional(anime.year, (v) => assertNumber(v, "Anime.year"))
+    ? anime.year
+    : null;
 
   return {
     ...emptyDetails,
@@ -66,20 +87,20 @@ const getAnimeDetails = async (animeId: string) => {
         ...emptyDetails.anime.info,
         id: anime.id,
         name: anime.title,
-        description: anime.description || "",
+        description,
         stats: {
-          rating: anime.status || "",
+          rating: status,
           quality: "",
           episodes: { sub: 0, dub: 0 },
-          type: anime.status || "Unknown",
+          type: status,
           duration: "",
         },
       },
       moreInfo: {
         ...emptyDetails.anime.moreInfo,
-        japanese: anime.title_original || anime.title,
-        aired: anime.year ? anime.year.toString() : "N/A",
-        status: anime.status || "Unknown",
+        japanese: titleOriginal,
+        aired: year ? year.toString() : "N/A",
+        status,
       },
     },
     seasons,

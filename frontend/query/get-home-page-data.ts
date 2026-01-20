@@ -8,6 +8,7 @@ import {
   mapBackendAnimeToSpotlightAnime,
   mapBackendAnimeToTopUpcomingAnime
 } from "@/mappers/anime.mapper";
+import { assertArrayResponse } from "@/lib/contract-guards";
 
 const getHomePageData: QueryFunction<
   IAnimeData,
@@ -34,13 +35,15 @@ const getHomePageData: QueryFunction<
     params: { limit: 20, offset: 0 },
   });
   
-  const mapped = (res.data || []).map(mapBackendAnimeToIAnime);
+  assertArrayResponse(res.data);
   
-  const spotlightAnimes: SpotlightAnime[] = (res.data || [])
+  const mapped = res.data.map(mapBackendAnimeToIAnime);
+  
+  const spotlightAnimes: SpotlightAnime[] = res.data
     .slice(0, 5)
     .map((anime, idx) => mapBackendAnimeToSpotlightAnime(anime, idx + 1));
   
-  const topUpcomingAnimes: TopUpcomingAnime[] = (res.data || [])
+  const topUpcomingAnimes: TopUpcomingAnime[] = res.data
     .map(mapBackendAnimeToTopUpcomingAnime);
 
   const data: IAnimeData = {

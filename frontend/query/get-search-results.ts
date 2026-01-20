@@ -5,6 +5,7 @@ import { useQuery } from "react-query";
 import { normalizeSearchParams } from "./search-normalize";
 import { BackendAnime } from "@/mappers/common";
 import { mapBackendAnimeToIAnime } from "@/mappers/anime.mapper";
+import { assertArrayResponse } from "@/lib/contract-guards";
 
 const searchAnime = async (params: SearchAnimeParams) => {
   const limit = 20;
@@ -15,7 +16,8 @@ const searchAnime = async (params: SearchAnimeParams) => {
     params: { q: params.q, limit, offset },
   });
 
-  const animes = (res.data || []).map(mapBackendAnimeToIAnime);
+  assertArrayResponse(res.data);
+  const animes = (res.data as BackendAnime[]).map(mapBackendAnimeToIAnime);
 
   const hasNextPage = animes.length === limit;
   const estimatedTotal =
