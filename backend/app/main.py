@@ -3,7 +3,7 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request, Response, status
+from fastapi import FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
@@ -189,9 +189,13 @@ def _extract_canonical_error(detail: object) -> dict[str, object] | None:
         error.get("message"), str
     ):
         return None
-    if "details" not in error:
-        return {"error": {**error, "details": None}}
-    return detail
+    return {
+        "error": {
+            "code": error["code"],
+            "message": error["message"],
+            "details": error.get("details"),
+        }
+    }
 
 
 @app.exception_handler(AppError)
@@ -203,9 +207,9 @@ async def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
     )
 
 
-@app.exception_handler(HTTPException)
+@app.exception_handler(StarletteHTTPException)
 async def handle_http_exception(
-    request: Request, exc: HTTPException | StarletteHTTPException
+    request: Request, exc: StarletteHTTPException
 ) -> JSONResponse:
     payload = _extract_canonical_error(exc.detail)
     if payload is not None:
@@ -310,11 +314,6 @@ async def handle_unhandled_exception(
     )
 
 
-@app.exception_handler(StarletteHTTPException)
-async def handle_starlette_http_exception(
-    request: Request, exc: StarletteHTTPException
-) -> JSONResponse:
-    return await handle_http_exception(request, exc)
 
 
 @app.get("/health", tags=["health"])
