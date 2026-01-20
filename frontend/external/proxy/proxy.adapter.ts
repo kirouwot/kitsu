@@ -43,6 +43,38 @@ import type { IAnimeSchedule } from "@/types/anime-schedule";
 import type { IEpisodeSource, IEpisodeServers } from "@/types/episodes";
 
 /**
+ * Domain model for AniList import response
+ * This is a local type, not exported, to prevent leakage
+ */
+interface AniListImportResponseDomain {
+  animes: Array<{
+    id: string;
+    title: string;
+    thumbnail: string;
+    status: string;
+  }>;
+}
+
+/**
+ * Domain model for AniList media list (input for import)
+ * This is a local type, not exported, to prevent leakage
+ */
+interface AniListMediaListInput {
+  name: string;
+  entries: Array<{
+    media: {
+      id: number;
+      bannerImage: string | null;
+      idMal: number | null;
+      title: {
+        english: string | null;
+      };
+    };
+  }>;
+  status: string;
+}
+
+/**
  * Fetches anime schedule from Shikimori proxy
  * 
  * ADAPTER CONTRACT:
@@ -216,3 +248,54 @@ export async function fetchEpisodeServers(
     fallback
   );
 }
+
+/**
+ * Imports AniList anime data through proxy
+ * 
+ * ADAPTER CONTRACT:
+ * - Input: animes array (AniListMediaListInput[])
+ * - Output: AniListImportResponseDomain with mapped anime data
+ * - Fallback: empty array on failure (graceful degradation)
+ * 
+ * INVARIANTS:
+ * - Uses EXTERNAL_API_POLICY (retry with backoff)
+ * - Contract validation happens inside adapter
+ * - Never throws raw errors (normalized to BaseApiError)
+ * 
+ * @param animes - Array of AniList media lists to import
+ * @returns Promise<AniListImportResponseDomain> - Domain model with imported animes
+ */
+export async function importAniListAnimes(
+  animes: AniListMediaListInput[]
+): Promise<AdapterDomainModel<AniListImportResponseDomain>> {
+  assertIsExternalAdapterCall('ProxyAdapter.importAniListAnimes');
+  
+  const endpoint = "/api/import/anilist";
+  
+  const fallback: AniListImportResponseDomain = {
+    animes: [],
+  };
+
+  return withRetryAndFallback(
+    async () => {
+      try {
+        const res = await api.post(endpoint, {
+          animes,
+        });
+        
+        // Contract validation - external API, schema not guaranteed by backend
+        assertExternalApiShape(res.data, endpoint);
+        assertFieldExists(res.data, 'animes', endpoint);
+        
+        return res.data as unknown as AniListImportResponseDomain;
+      } catch (error) {
+        // Normalize all errors to ApiError hierarchy
+        throw normalizeToApiError(error, endpoint);
+      }
+    },
+    EXTERNAL_API_POLICY,
+    endpoint,
+    fallback
+  );
+}
+

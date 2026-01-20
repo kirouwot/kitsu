@@ -10,7 +10,7 @@
  *    - All AniList queries go through this adapter
  * 
  * 2. CONTRACT
- *    - Input: ONLY primitives (numbers for IDs)
+ *    - Input: ONLY primitives (numbers for IDs, strings for usernames)
  *    - Output: ONLY domain models (simple objects with bannerImage)
  *    - NEVER expose GraphQL schema types or raw API response shapes
  * 
@@ -37,6 +37,7 @@ import { assertExternalApiShape, assertFieldExists } from "@/lib/contract-guards
 import { withRetryAndFallback, EXTERNAL_API_POLICY } from "@/lib/api-retry";
 import { normalizeToApiError } from "@/lib/api-errors";
 import { assertIsExternalAdapterCall, type AdapterDomainModel } from "@/lib/adapter-guards";
+import type { Data } from "@/types/anilist-animes";
 
 /**
  * Domain model for anime banner
@@ -106,6 +107,85 @@ export async function fetchAnimeBanner(
         assertFieldExists(res.data, 'data', endpoint);
         
         return res.data.data as AnimeBannerDomain;
+      } catch (error) {
+        // Normalize all errors to ApiError hierarchy
+        throw normalizeToApiError(error, endpoint);
+      }
+    },
+    EXTERNAL_API_POLICY,
+    endpoint,
+    fallback
+  );
+}
+
+/**
+ * Fetches user's anime list from AniList GraphQL API
+ * 
+ * ADAPTER CONTRACT:
+ * - Input: username (string primitive)
+ * - Output: Data domain model from @/types/anilist-animes
+ * - Fallback: empty list on failure (graceful degradation)
+ * 
+ * INVARIANTS:
+ * - Uses EXTERNAL_API_POLICY (retry with backoff)
+ * - Contract validation happens inside adapter
+ * - Never throws raw errors (normalized to BaseApiError)
+ * - GraphQL query is encapsulated (mutation layer doesn't know it exists)
+ * 
+ * @param username - AniList username (primitive string)
+ * @returns Promise<Data> - Domain model, never raw GraphQL response
+ */
+export async function fetchUserAnimeList(
+  username: string
+): Promise<AdapterDomainModel<Data>> {
+  assertIsExternalAdapterCall('AniListAdapter.fetchUserAnimeList');
+  
+  const endpoint = "https://graphql.anilist.co";
+  
+  const fallback: Data = {
+    MediaListCollection: {
+      lists: [],
+    },
+  };
+
+  return withRetryAndFallback(
+    async () => {
+      try {
+        const res = await api.post(
+          endpoint,
+          {
+            query: `
+              query ($username: String) {
+                MediaListCollection(type: ANIME, userName: $username) {
+                  lists {
+                    name
+                    entries {
+                      media {
+                        id
+                        bannerImage
+                        idMal
+                        title {
+                          english
+                        }
+                      }
+                    }
+                    status
+                  }
+                }
+              }
+            `,
+            variables: {
+              username,
+            },
+          },
+          { timeout: 10000 }
+        );
+        
+        // Contract validation - GraphQL external API, schema not guaranteed
+        assertExternalApiShape(res.data, endpoint);
+        assertFieldExists(res.data, 'data', endpoint);
+        
+        return res.data.data as Data;
       } catch (error) {
         // Normalize all errors to ApiError hierarchy
         throw normalizeToApiError(error, endpoint);
