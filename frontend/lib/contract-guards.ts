@@ -81,13 +81,13 @@ export function assertArray(value: unknown, path: string): asserts value is unkn
  */
 export function assertOptional<T>(
   value: unknown,
-  guard: (value: unknown) => asserts value is T,
+  guard: (value: unknown, path: string) => asserts value is T,
   path: string
 ): T | undefined {
   if (value === null || value === undefined) {
     return undefined;
   }
-  guard(value);
+  guard(value, path);
   return value;
 }
 
