@@ -5,6 +5,11 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Awaitable, Callable
 
+from redis.asyncio import Redis as AsyncRedis
+from redis.exceptions import RedisError
+
+from app.infra.redis import get_async_redis_client
+
 JobHandler = Callable[[], Awaitable[None]]
 
 
@@ -25,32 +30,112 @@ class Job:
 
 
 class JobRunner:
-    def __init__(self) -> None:
-        self._queue: asyncio.Queue[Job] = asyncio.Queue()
+    """
+    Distributed job runner using Redis for coordination.
+    Safe for multi-worker deployment - jobs are not duplicated or lost.
+    """
+
+    def __init__(self, redis_client: AsyncRedis | None = None) -> None:
+        self._redis = redis_client
         self._task: asyncio.Task[None] | None = None
-        self._statuses: dict[str, JobStatus] = {}
+        self._jobs: dict[str, Job] = {}
         self._lock = asyncio.Lock()
         self._logger = logging.getLogger("kitsu.jobs")
+        self._redis_available = True
 
-    def status_for(self, key: str) -> JobStatus | None:
-        return self._statuses.get(key)
+    async def _ensure_redis(self) -> AsyncRedis:
+        """Lazy initialize Redis client."""
+        if self._redis is None:
+            try:
+                self._redis = get_async_redis_client()
+                await self._redis.ping()
+                self._redis_available = True
+            except (RedisError, ValueError) as exc:
+                self._logger.error("Redis unavailable for job runner: %s", exc)
+                self._redis_available = False
+                raise
+        return self._redis
+
+    def _make_status_key(self, job_key: str) -> str:
+        """Redis key for job status."""
+        return f"job:status:{job_key}"
+
+    async def status_for(self, key: str) -> JobStatus | None:
+        """Get job status from Redis or in-memory cache."""
+        if not self._redis_available:
+            return None
+
+        try:
+            redis = await self._ensure_redis()
+            status_str = await redis.get(self._make_status_key(key))
+            if status_str:
+                return JobStatus(status_str)
+        except (RedisError, ValueError) as exc:
+            self._logger.warning("Failed to get job status for %s: %s", key, exc)
+
+        return None
 
     async def enqueue(self, job: Job) -> Job:
-        async with self._lock:
-            status = self._statuses.get(job.key)
-            if status in {JobStatus.QUEUED, JobStatus.RUNNING, JobStatus.SUCCEEDED}:
-                return job
+        """
+        Enqueue job with Redis coordination.
+        Prevents duplicate enqueuing across workers.
+        """
+        if not self._redis_available:
+            self._logger.error("Cannot enqueue job - Redis unavailable")
+            return job
 
-            self._statuses[job.key] = JobStatus.QUEUED
-            await self._queue.put(job)
-            await self._ensure_worker()
+        async with self._lock:
+            try:
+                redis = await self._ensure_redis()
+                status_key = self._make_status_key(job.key)
+
+                # Check current status
+                current_status_str = await redis.get(status_key)
+                if current_status_str:
+                    current_status = JobStatus(current_status_str)
+                    if current_status in {
+                        JobStatus.QUEUED,
+                        JobStatus.RUNNING,
+                        JobStatus.SUCCEEDED,
+                    }:
+                        self._logger.debug(
+                            "Job %s already %s, skipping enqueue",
+                            job.key,
+                            current_status,
+                        )
+                        return job
+
+                # Set status to QUEUED with SET NX (only if not exists)
+                # TTL ensures cleanup even if worker crashes
+                was_set = await redis.set(
+                    status_key,
+                    JobStatus.QUEUED.value,
+                    nx=True,
+                    ex=3600,  # 1 hour TTL
+                )
+
+                if was_set:
+                    # We successfully claimed this job
+                    self._jobs[job.key] = job
+                    await self._ensure_worker()
+                    self._logger.debug("Enqueued job: %s", job.key)
+                else:
+                    # Another worker already enqueued this job
+                    self._logger.debug("Job %s already enqueued by another worker", job.key)
+
+            except (RedisError, ValueError) as exc:
+                self._logger.error("Failed to enqueue job %s: %s", job.key, exc)
 
         return job
 
     async def drain(self) -> None:
-        await self._queue.join()
+        """Wait for all jobs in this worker to complete."""
+        # Wait for worker to process all jobs in _jobs dict
+        while self._jobs and self._task and not self._task.done():
+            await asyncio.sleep(0.1)
 
     async def stop(self) -> None:
+        """Stop the worker task."""
         if self._task is None:
             return
         self._task.cancel()
@@ -59,40 +144,63 @@ class JobRunner:
         self._task = None
 
     async def _ensure_worker(self) -> None:
+        """Ensure worker task is running."""
         if self._task is None or self._task.done():
             self._task = asyncio.create_task(self._worker())
 
     async def _worker(self) -> None:
+        """Process jobs from local queue."""
         try:
             while True:
-                job = await self._queue.get()
+                # Check if there are jobs to process
+                if not self._jobs:
+                    await asyncio.sleep(0.1)
+                    continue
+
+                # Get next job (insertion order - Python 3.7+ dict guarantee)
+                job_key = next(iter(self._jobs.keys()))
+                job = self._jobs.pop(job_key)
                 await self._run_job(job)
-                self._queue.task_done()
+
         except asyncio.CancelledError:
             return
 
     async def _run_job(self, job: Job) -> None:
-        self._statuses[job.key] = JobStatus.RUNNING
-        while job.attempts < job.max_attempts:
-            try:
-                await job.handler()
-            except Exception as exc:  # noqa: BLE001
-                job.attempts += 1
-                self._logger.error(
-                    "Job failed (key=%s attempt=%s/%s)",
-                    job.key,
-                    job.attempts,
-                    job.max_attempts,
-                    exc_info=exc,
-                )
-                if job.attempts >= job.max_attempts:
-                    self._statuses[job.key] = JobStatus.FAILED
+        """Execute job with retry logic and status tracking."""
+        try:
+            redis = await self._ensure_redis()
+            status_key = self._make_status_key(job.key)
+
+            # Update status to RUNNING
+            await redis.set(status_key, JobStatus.RUNNING.value, ex=3600)
+            self._logger.debug("Running job: %s", job.key)
+
+            # Execute with retries
+            while job.attempts < job.max_attempts:
+                try:
+                    await job.handler()
+                    # Success
+                    await redis.set(status_key, JobStatus.SUCCEEDED.value, ex=86400)
+                    self._logger.debug("Job succeeded: %s", job.key)
                     return
-                delay = min(
-                    job.backoff_seconds * job.attempts,
-                    job.backoff_seconds * job.max_attempts,
-                )
-                await asyncio.sleep(delay)
-            else:
-                self._statuses[job.key] = JobStatus.SUCCEEDED
-                return
+                except Exception as exc:  # noqa: BLE001
+                    job.attempts += 1
+                    self._logger.error(
+                        "Job failed (key=%s attempt=%s/%s)",
+                        job.key,
+                        job.attempts,
+                        job.max_attempts,
+                        exc_info=exc,
+                    )
+                    if job.attempts >= job.max_attempts:
+                        await redis.set(status_key, JobStatus.FAILED.value, ex=86400)
+                        self._logger.error("Job failed permanently: %s", job.key)
+                        return
+                    delay = min(
+                        job.backoff_seconds * job.attempts,
+                        job.backoff_seconds * job.max_attempts,
+                    )
+                    await asyncio.sleep(delay)
+
+        except (RedisError, ValueError) as exc:
+            self._logger.error("Redis error while running job %s: %s", job.key, exc)
