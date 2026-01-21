@@ -13,6 +13,7 @@ class Settings(BaseModel):
     app_name: str = Field(default="Kitsu Backend")
     debug: bool = Field(default=False)
     database_url: str = Field(default="")
+    redis_url: str = Field(default="redis://localhost:6379/0")
     allowed_origins: list[str] = Field(default_factory=list)
     db_pool_size: int = Field(default=5)
     db_max_overflow: int = Field(default=10)
@@ -103,10 +104,13 @@ class Settings(BaseModel):
         else:
             raise ValueError("DB_POOL_PRE_PING must be a boolean value")
 
+        redis_url = os.getenv("REDIS_URL", cls.model_fields["redis_url"].default).strip()
+        
         return cls(
             app_name=os.getenv("APP_NAME", cls.model_fields["app_name"].default),
             debug=os.getenv("DEBUG", "false").lower() == "true",
             database_url=database_url,
+            redis_url=redis_url,
             allowed_origins=allowed_origins,
             secret_key=secret_key,
             access_token_expire_minutes=int(

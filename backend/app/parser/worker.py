@@ -23,6 +23,7 @@ from sqlalchemy import insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import AsyncSessionLocal
+from ..infrastructure.redis import get_redis
 from ..services.audit.audit_service import AuditService
 from .config import ParserSettings
 from .scheduler import ParserScheduler, get_sources_needing_catalog_sync
@@ -39,6 +40,10 @@ logger = logging.getLogger(__name__)
 DEFAULT_WORKER_INTERVAL_SECONDS = 60
 MIN_WORKER_INTERVAL_SECONDS = 30
 MAX_WORKER_INTERVAL_SECONDS = 300
+
+# Distributed lock configuration
+WORKER_LOCK_KEY = "parser:worker:cycle"
+WORKER_LOCK_TTL = 120  # 2 minutes (longer than cycle interval)
 
 
 class ParserWorker:
@@ -72,6 +77,8 @@ class ParserWorker:
         """Start the worker loop.
         
         The worker will run indefinitely until shutdown() is called.
+        Multiple workers can run, but only one will be active at a time
+        due to distributed locking.
         """
         self._running = True
         self._shutdown_event.clear()
@@ -82,7 +89,19 @@ class ParserWorker:
         
         while self._running and not self._shutdown_event.is_set():
             try:
-                await self._run_cycle()
+                redis = get_redis()
+                
+                # Try to acquire worker lock
+                async with redis.acquire_lock(
+                    WORKER_LOCK_KEY,
+                    ttl_seconds=WORKER_LOCK_TTL,
+                ) as acquired:
+                    if acquired:
+                        logger.info("Acquired worker lock, running cycle")
+                        await self._run_cycle()
+                    else:
+                        logger.debug("Worker lock held by another instance, sleeping")
+                        
             except Exception as exc:
                 logger.exception(
                     "Worker cycle failed with unhandled exception",
@@ -188,15 +207,30 @@ class ParserWorker:
         """Queue catalog synchronization task.
         
         This method queues (not executes) catalog sync work.
+        Uses Redis to prevent duplicate execution across workers.
         """
-        # Double-check mode before queueing
-        current_settings = await get_parser_settings(session)
-        if current_settings.mode != "auto":
-            logger.warning("Mode changed to manual during cycle, aborting catalog sync")
+        redis = get_redis()
+        
+        # Create deterministic job ID
+        job_id_key = f"catalog_sync:{source['code']}"
+        
+        # Check if job is already running (across all workers)
+        is_new = await redis.check_job_running(job_id_key, ttl_seconds=600)
+        if not is_new:
+            logger.info(
+                "Catalog sync already running, skipping",
+                extra={"source": source["code"]}
+            )
             return
         
         try:
-            job_id = await self._create_job(session, source["id"], "catalog_sync")
+            # Double-check mode before queueing
+            current_settings = await get_parser_settings(session)
+            if current_settings.mode != "auto":
+                logger.warning("Mode changed to manual during cycle, aborting catalog sync")
+                return
+            
+            db_job_id = await self._create_job(session, source["id"], "catalog_sync")
             
             # Execute catalog sync
             catalog_source = ShikimoriCatalogSource(settings)
@@ -210,7 +244,7 @@ class ParserWorker:
             # Sync catalog - respect autopublish setting
             result = sync_service.sync_all(persist=True, publish=settings.autopublish_enabled)
             
-            await self._finish_job(session, job_id, source["id"], "success", None)
+            await self._finish_job(session, db_job_id, source["id"], "success", None)
             await session.commit()
             
             logger.info(
@@ -223,9 +257,12 @@ class ParserWorker:
                 exc_info=exc,
                 extra={"source": source["code"]}
             )
-            await self._log_job_error(session, job_id, str(exc))
-            await self._finish_job(session, job_id, source["id"], "failed", str(exc))
+            await self._log_job_error(session, db_job_id, str(exc))
+            await self._finish_job(session, db_job_id, source["id"], "failed", str(exc))
             await session.commit()
+        finally:
+            # Mark job as complete in Redis
+            await redis.mark_job_complete(job_id_key)
     
     async def _queue_episode_autoupdate(
         self,
@@ -237,21 +274,33 @@ class ParserWorker:
         """Queue episode autoupdate task for ongoing anime.
         
         This method queues (not executes) episode autoupdate work.
+        Uses Redis to prevent duplicate execution across workers.
         """
-        # Double-check mode before queueing
-        current_settings = await get_parser_settings(session)
-        if current_settings.mode != "auto":
-            logger.warning("Mode changed to manual during cycle, aborting autoupdate")
+        redis = get_redis()
+        
+        # Create deterministic job ID
+        job_id_key = "episode_autoupdate"
+        
+        # Check if job is already running (across all workers)
+        is_new = await redis.check_job_running(job_id_key, ttl_seconds=600)
+        if not is_new:
+            logger.info("Episode autoupdate already running, skipping")
             return
         
         try:
-            job_id = await self._create_job(session, kodik_source["id"], "episode_autoupdate")
+            # Double-check mode before queueing
+            current_settings = await get_parser_settings(session)
+            if current_settings.mode != "auto":
+                logger.warning("Mode changed to manual during cycle, aborting autoupdate")
+                return
+            
+            db_job_id = await self._create_job(session, kodik_source["id"], "episode_autoupdate")
             
             # Execute episode autoupdate
             autoupdate_service = ParserEpisodeAutoupdateService(session=session, settings=settings)
             result = await autoupdate_service.run(force=False)
             
-            await self._finish_job(session, job_id, kodik_source["id"], "success", None)
+            await self._finish_job(session, db_job_id, kodik_source["id"], "success", None)
             await session.commit()
             
             logger.info(
@@ -263,9 +312,12 @@ class ParserWorker:
                 "Episode autoupdate failed",
                 exc_info=exc,
             )
-            await self._log_job_error(session, job_id, str(exc))
-            await self._finish_job(session, job_id, kodik_source["id"], "failed", str(exc))
+            await self._log_job_error(session, db_job_id, str(exc))
+            await self._finish_job(session, db_job_id, kodik_source["id"], "failed", str(exc))
             await session.commit()
+        finally:
+            # Mark job as complete in Redis
+            await redis.mark_job_complete(job_id_key)
     
     async def _create_job(
         self, session: AsyncSession, source_id: int, job_type: str

@@ -43,7 +43,7 @@ async def refresh_session(
 
     token_identifier = token_hash[:REFRESH_TOKEN_IDENTIFIER_LENGTH]
     try:
-        key = check_refresh_rate_limit(token_identifier, client_ip)
+        key = await check_refresh_rate_limit(token_identifier, client_ip)
     except RateLimitExceededError:
         raise AppError(
             RATE_LIMIT_MESSAGE,
@@ -54,7 +54,7 @@ async def refresh_session(
     try:
         tokens = await _validate_and_issue_tokens(token_port, token_hash)
     except (AuthError, PermissionError):
-        record_refresh_failure(key)
+        await record_refresh_failure(key)
         await token_port.rollback()
         raise
     except AppError:
@@ -63,5 +63,5 @@ async def refresh_session(
     except Exception:
         await token_port.rollback()
         raise
-    reset_refresh_limit(key)
+    await reset_refresh_limit(key)
     return tokens
