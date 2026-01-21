@@ -1,9 +1,11 @@
-import asyncio
+import hashlib
 import logging
 from contextlib import suppress
 from dataclasses import dataclass
 from enum import Enum
 from typing import Awaitable, Callable
+
+from ..infrastructure.redis import get_redis
 
 JobHandler = Callable[[], Awaitable[None]]
 
@@ -26,53 +28,67 @@ class Job:
 
 class JobRunner:
     def __init__(self) -> None:
-        self._queue: asyncio.Queue[Job] = asyncio.Queue()
-        self._task: asyncio.Task[None] | None = None
-        self._statuses: dict[str, JobStatus] = {}
-        self._lock = asyncio.Lock()
         self._logger = logging.getLogger("kitsu.jobs")
 
+    def _make_job_id(self, job: Job) -> str:
+        """Generate deterministic job ID from job key."""
+        # Use job key as the unique identifier
+        return hashlib.sha256(job.key.encode()).hexdigest()[:32]
+
     def status_for(self, key: str) -> JobStatus | None:
-        return self._statuses.get(key)
+        """Get job status (not implemented for Redis-based runner).
+        
+        In a distributed environment, job status tracking would require
+        additional Redis operations. For now, return None.
+        """
+        return None
 
     async def enqueue(self, job: Job) -> Job:
-        async with self._lock:
-            status = self._statuses.get(job.key)
-            if status in {JobStatus.QUEUED, JobStatus.RUNNING, JobStatus.SUCCEEDED}:
-                return job
-
-            self._statuses[job.key] = JobStatus.QUEUED
-            await self._queue.put(job)
-            await self._ensure_worker()
-
+        """Enqueue a job for execution.
+        
+        Jobs are deduplicated using Redis - if a job with the same key
+        is already running, it won't be started again.
+        """
+        redis = get_redis()
+        job_id = self._make_job_id(job)
+        
+        # Check if job is already running (across all workers)
+        is_new = await redis.check_job_running(job_id, ttl_seconds=300)
+        
+        if not is_new:
+            self._logger.info(
+                "Job already running, skipping",
+                extra={"job_key": job.key, "job_id": job_id}
+            )
+            return job
+        
+        # Execute job immediately (no queue needed in this design)
+        try:
+            await self._run_job(job)
+        finally:
+            # Mark job as complete
+            await redis.mark_job_complete(job_id)
+        
         return job
 
     async def drain(self) -> None:
-        await self._queue.join()
+        """Wait for all jobs to complete.
+        
+        In Redis-based implementation, this is a no-op since jobs
+        are executed immediately when enqueued.
+        """
+        pass
 
     async def stop(self) -> None:
-        if self._task is None:
-            return
-        self._task.cancel()
-        with suppress(asyncio.CancelledError):
-            await self._task
-        self._task = None
-
-    async def _ensure_worker(self) -> None:
-        if self._task is None or self._task.done():
-            self._task = asyncio.create_task(self._worker())
-
-    async def _worker(self) -> None:
-        try:
-            while True:
-                job = await self._queue.get()
-                await self._run_job(job)
-                self._queue.task_done()
-        except asyncio.CancelledError:
-            return
+        """Stop the job runner.
+        
+        In Redis-based implementation, this is a no-op since there
+        are no background workers to stop.
+        """
+        pass
 
     async def _run_job(self, job: Job) -> None:
-        self._statuses[job.key] = JobStatus.RUNNING
+        """Execute a job with retry logic."""
         while job.attempts < job.max_attempts:
             try:
                 await job.handler()
@@ -86,13 +102,13 @@ class JobRunner:
                     exc_info=exc,
                 )
                 if job.attempts >= job.max_attempts:
-                    self._statuses[job.key] = JobStatus.FAILED
                     return
+                # Simple backoff
+                import asyncio
                 delay = min(
                     job.backoff_seconds * job.attempts,
                     job.backoff_seconds * job.max_attempts,
                 )
                 await asyncio.sleep(delay)
             else:
-                self._statuses[job.key] = JobStatus.SUCCEEDED
                 return

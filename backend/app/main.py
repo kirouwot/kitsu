@@ -78,14 +78,24 @@ async def lifespan(app: FastAPI):
     if settings.debug:
         logger.warning("DEBUG=true — do not use in production")
 
+    # Initialize Redis for distributed coordination
+    from .infrastructure.redis import init_redis, close_redis
+    await init_redis(settings.redis_url)
+    logger.info("Redis initialized for distributed coordination")
+
     await run_required_startup_checks(engine)
     await run_optional_startup_tasks()
+    
+    # Start parser autoupdate scheduler (uses distributed lock)
     await parser_autoupdate_scheduler.start()
 
     yield
 
+    # Cleanup
     await parser_autoupdate_scheduler.stop()
     await default_job_runner.stop()
+    await close_redis()
+    logger.info("Application shutdown complete")
 
 
 app = FastAPI(title=settings.app_name, debug=settings.debug, lifespan=lifespan)
