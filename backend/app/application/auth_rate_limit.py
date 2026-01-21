@@ -39,10 +39,12 @@ class SoftRateLimiter:
     def record_failure(self, key: str, now: float | None = None) -> None:
         redis_key = self._make_redis_key(key)
         try:
-            count = self._redis.incr(redis_key)
-            # Set TTL only on first increment
-            if count == 1:
-                self._redis.expire(redis_key, self.window_seconds)
+            # Use pipeline to ensure atomicity
+            pipe = self._redis.pipeline()
+            pipe.incr(redis_key)
+            pipe.expire(redis_key, self.window_seconds)
+            results = pipe.execute()
+            # results[0] is the count after increment
         except RedisError:
             # Fail closed: if we can't record, assume limit exceeded
             pass
