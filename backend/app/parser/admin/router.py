@@ -59,6 +59,10 @@ async def require_parser_logs_permission(
     Dependency to enforce admin.parser.logs permission.
     
     SECURITY: Required for viewing parser logs and dashboard.
+    
+    NOTE: PermissionService is lightweight and reuses the db session,
+    so instantiation per request is acceptable. This follows the same
+    pattern as other admin endpoints (see statistics).
     """
     permission_service = PermissionService(db)
     await permission_service.require_permission(
@@ -77,6 +81,9 @@ async def require_parser_settings_permission(
     Dependency to enforce admin.parser.settings permission.
     
     SECURITY: Required for modifying parser configuration and running parser.
+    
+    NOTE: PermissionService is lightweight and reuses the db session,
+    so instantiation per request is acceptable.
     """
     permission_service = PermissionService(db)
     await permission_service.require_permission(
@@ -95,6 +102,9 @@ async def require_parser_emergency_permission(
     Dependency to enforce admin.parser.emergency permission.
     
     SECURITY: Required for emergency stop operations.
+    
+    NOTE: PermissionService is lightweight and reuses the db session,
+    so instantiation per request is acceptable.
     """
     permission_service = PermissionService(db)
     await permission_service.require_permission(

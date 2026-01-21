@@ -288,7 +288,7 @@ class AuditService:
         before: dict[str, Any] | None = None,
         after: dict[str, Any] | None = None,
         reason: str | None = None,
-        request: Any = None,
+        request: Any = None,  # TODO: Should be fastapi.Request | None, avoiding import for circular dependency
     ) -> None:
         """
         Log a generic action with request context.
@@ -309,9 +309,14 @@ class AuditService:
         ip_address = None
         user_agent = None
         
+        # Extract context from request if provided
+        # We use hasattr to avoid type checking since Request is not imported
+        # to prevent circular dependencies
         if request:
-            ip_address = request.client.host if hasattr(request, 'client') and request.client else None
-            user_agent = request.headers.get("user-agent") if hasattr(request, 'headers') else None
+            if hasattr(request, 'client') and request.client:
+                ip_address = request.client.host
+            if hasattr(request, 'headers'):
+                user_agent = request.headers.get("user-agent")
         
         await self.log(
             action=action,
