@@ -16,7 +16,6 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 from redis.asyncio import Redis as AsyncRedis, from_url as async_from_url
-from redis import Redis as SyncRedis, from_url as sync_from_url
 from redis.exceptions import RedisError
 
 logger = logging.getLogger(__name__)
@@ -265,104 +264,12 @@ class RedisClient:
         await redis.delete(job_key)
 
 
-class SyncRedisClient:
-    """Synchronous Redis client for use in sync contexts (e.g., rate limiting).
-    
-    This client provides synchronous Redis operations for cases where
-    async operations are not practical.
-    """
-    
-    def __init__(self, redis_url: str) -> None:
-        """Initialize sync Redis client.
-        
-        Args:
-            redis_url: Redis connection URL (e.g., redis://localhost:6379/0)
-        """
-        self._redis_url = redis_url
-        self._redis: SyncRedis | None = None
-    
-    def connect(self) -> None:
-        """Establish Redis connection."""
-        if self._redis is None:
-            self._redis = sync_from_url(
-                self._redis_url,
-                encoding="utf-8",
-                decode_responses=True,
-            )
-            logger.info("Sync Redis connection established")
-    
-    def disconnect(self) -> None:
-        """Close Redis connection."""
-        if self._redis is not None:
-            self._redis.close()
-            self._redis = None
-            logger.info("Sync Redis connection closed")
-    
-    def _ensure_connected(self) -> SyncRedis:
-        """Ensure Redis is connected and return the client."""
-        if self._redis is None:
-            self.connect()
-        assert self._redis is not None
-        return self._redis
-    
-    def increment_counter(
-        self,
-        key: str,
-        ttl_seconds: int | None = None,
-    ) -> int:
-        """Increment a counter and optionally set TTL.
-        
-        Args:
-            key: Counter key
-            ttl_seconds: TTL for the counter (set only on first increment)
-            
-        Returns:
-            New counter value
-        """
-        redis = self._ensure_connected()
-        
-        # Use pipeline for atomic operations
-        with redis.pipeline(transaction=True) as pipe:
-            # Increment counter
-            pipe.incr(key)
-            
-            # Set TTL only if not already set
-            if ttl_seconds is not None:
-                pipe.expire(key, ttl_seconds, nx=True)
-            
-            results = pipe.execute()
-            return int(results[0])
-    
-    def get_counter(self, key: str) -> int:
-        """Get current counter value.
-        
-        Args:
-            key: Counter key
-            
-        Returns:
-            Counter value (0 if not exists)
-        """
-        redis = self._ensure_connected()
-        value = redis.get(key)
-        return int(value) if value else 0
-    
-    def delete_counter(self, key: str) -> None:
-        """Delete a counter.
-        
-        Args:
-            key: Counter key
-        """
-        redis = self._ensure_connected()
-        redis.delete(key)
-
-
-# Global instances (created at startup, not at import)
+# Global instance (created at startup, not at import)
 _redis_client: RedisClient | None = None
-_sync_redis_client: SyncRedisClient | None = None
 
 
 async def init_redis(redis_url: str) -> RedisClient:
-    """Initialize global Redis clients.
+    """Initialize global Redis client.
     
     Should be called once at application startup.
     
@@ -372,28 +279,21 @@ async def init_redis(redis_url: str) -> RedisClient:
     Returns:
         Redis client instance
     """
-    global _redis_client, _sync_redis_client
+    global _redis_client
     _redis_client = RedisClient(redis_url)
     await _redis_client.connect()
-    
-    _sync_redis_client = SyncRedisClient(redis_url)
-    _sync_redis_client.connect()
-    
     return _redis_client
 
 
 async def close_redis() -> None:
-    """Close global Redis clients.
+    """Close global Redis client.
     
     Should be called at application shutdown.
     """
-    global _redis_client, _sync_redis_client
+    global _redis_client
     if _redis_client is not None:
         await _redis_client.disconnect()
         _redis_client = None
-    if _sync_redis_client is not None:
-        _sync_redis_client.disconnect()
-        _sync_redis_client = None
 
 
 def get_redis() -> RedisClient:
@@ -408,17 +308,3 @@ def get_redis() -> RedisClient:
     if _redis_client is None:
         raise RuntimeError("Redis client not initialized. Call init_redis() first.")
     return _redis_client
-
-
-def get_sync_redis() -> SyncRedisClient:
-    """Get the global sync Redis client.
-    
-    Returns:
-        Sync Redis client instance
-        
-    Raises:
-        RuntimeError: If Redis client not initialized
-    """
-    if _sync_redis_client is None:
-        raise RuntimeError("Sync Redis client not initialized. Call init_redis() first.")
-    return _sync_redis_client

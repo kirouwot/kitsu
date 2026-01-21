@@ -1,6 +1,6 @@
 import hashlib
 
-from ..infrastructure.redis import get_sync_redis
+from ..infrastructure.redis import get_redis
 
 AUTH_RATE_LIMIT_MAX_ATTEMPTS = 5
 AUTH_RATE_LIMIT_WINDOW_SECONDS = 60
@@ -17,14 +17,14 @@ class RedisRateLimiter:
     """Redis-based rate limiter for distributed environments.
     
     Uses Redis counters with TTL for rate limiting across multiple workers.
-    Synchronous API for compatibility with existing code.
+    Async API for proper integration with FastAPI.
     """
     
     def __init__(self, max_attempts: int, window_seconds: int) -> None:
         self.max_attempts = max_attempts
         self.window_seconds = window_seconds
 
-    def is_limited(self, key: str) -> bool:
+    async def is_limited(self, key: str) -> bool:
         """Check if the key is rate limited.
         
         Args:
@@ -33,30 +33,30 @@ class RedisRateLimiter:
         Returns:
             True if rate limited, False otherwise
         """
-        redis = get_sync_redis()
+        redis = get_redis()
         counter_key = f"ratelimit:{key}"
-        current = redis.get_counter(counter_key)
+        current = await redis.get_counter(counter_key)
         return current >= self.max_attempts
 
-    def record_failure(self, key: str) -> None:
+    async def record_failure(self, key: str) -> None:
         """Record a failed attempt.
         
         Args:
             key: Rate limit key
         """
-        redis = get_sync_redis()
+        redis = get_redis()
         counter_key = f"ratelimit:{key}"
-        redis.increment_counter(counter_key, ttl_seconds=self.window_seconds)
+        await redis.increment_counter(counter_key, ttl_seconds=self.window_seconds)
 
-    def reset(self, key: str) -> None:
+    async def reset(self, key: str) -> None:
         """Reset the rate limit for a key.
         
         Args:
             key: Rate limit key
         """
-        redis = get_sync_redis()
+        redis = get_redis()
         counter_key = f"ratelimit:{key}"
-        redis.delete_counter(counter_key)
+        await redis.delete_counter(counter_key)
 
 
 def _make_key(scope: str, identifier: str, client_ip: str | None) -> str:
@@ -68,8 +68,8 @@ def _make_key(scope: str, identifier: str, client_ip: str | None) -> str:
     return f"{scope}:{ip_component}:{identifier_component}"
 
 
-def _ensure_not_limited(limiter: RedisRateLimiter, key: str) -> None:
-    if limiter.is_limited(key):
+async def _ensure_not_limited(limiter: RedisRateLimiter, key: str) -> None:
+    if await limiter.is_limited(key):
         raise RateLimitExceededError
 
 
@@ -79,7 +79,7 @@ auth_rate_limiter = RedisRateLimiter(
 )
 
 
-def check_login_rate_limit(email: str, client_ip: str | None = None) -> str:
+async def check_login_rate_limit(email: str, client_ip: str | None = None) -> str:
     """Check if login rate limit is exceeded.
     
     Args:
@@ -93,29 +93,29 @@ def check_login_rate_limit(email: str, client_ip: str | None = None) -> str:
         RateLimitExceededError: If rate limit exceeded
     """
     key = _make_key("login", email.lower(), client_ip)
-    _ensure_not_limited(auth_rate_limiter, key)
+    await _ensure_not_limited(auth_rate_limiter, key)
     return key
 
 
-def record_login_failure(key: str) -> None:
+async def record_login_failure(key: str) -> None:
     """Record a failed login attempt.
     
     Args:
         key: Rate limit key from check_login_rate_limit
     """
-    auth_rate_limiter.record_failure(key)
+    await auth_rate_limiter.record_failure(key)
 
 
-def reset_login_limit(key: str) -> None:
+async def reset_login_limit(key: str) -> None:
     """Reset login rate limit.
     
     Args:
         key: Rate limit key from check_login_rate_limit
     """
-    auth_rate_limiter.reset(key)
+    await auth_rate_limiter.reset(key)
 
 
-def check_refresh_rate_limit(token_identifier: str, client_ip: str | None = None) -> str:
+async def check_refresh_rate_limit(token_identifier: str, client_ip: str | None = None) -> str:
     """Check if refresh rate limit is exceeded.
     
     Args:
@@ -129,23 +129,23 @@ def check_refresh_rate_limit(token_identifier: str, client_ip: str | None = None
         RateLimitExceededError: If rate limit exceeded
     """
     key = _make_key("refresh", token_identifier, client_ip)
-    _ensure_not_limited(auth_rate_limiter, key)
+    await _ensure_not_limited(auth_rate_limiter, key)
     return key
 
 
-def record_refresh_failure(key: str) -> None:
+async def record_refresh_failure(key: str) -> None:
     """Record a failed refresh attempt.
     
     Args:
         key: Rate limit key from check_refresh_rate_limit
     """
-    auth_rate_limiter.record_failure(key)
+    await auth_rate_limiter.record_failure(key)
 
 
-def reset_refresh_limit(key: str) -> None:
+async def reset_refresh_limit(key: str) -> None:
     """Reset refresh rate limit.
     
     Args:
         key: Rate limit key from check_refresh_rate_limit
     """
-    auth_rate_limiter.reset(key)
+    await auth_rate_limiter.reset(key)
