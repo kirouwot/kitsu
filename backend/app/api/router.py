@@ -10,6 +10,7 @@ from .proxy import import_anilist as proxy_import_anilist
 from .proxy import schedule as proxy_schedule
 from .proxy import search as proxy_search
 from .admin import anime as admin_anime
+from .admin import statistics as admin_statistics
 
 router = APIRouter(prefix="/api")
 
@@ -17,11 +18,12 @@ _internal_routers = [
     internal_health.router,
     internal_favorites.router,
     internal_watch.router,
-    parser_admin.router,
+    parser_admin,
 ]
 
 _admin_routers = [
     admin_anime.router,
+    admin_statistics.router,
 ]
 
 _proxy_routers = [

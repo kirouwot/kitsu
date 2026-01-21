@@ -110,6 +110,7 @@ ADMIN_PERMISSIONS: Final[frozenset[str]] = frozenset({
     "admin.roles.manage",
     "admin.users.manage",
     "admin.users.view",
+    "admin.statistics.view",
 })
 
 # Audit permissions
@@ -291,6 +292,7 @@ ROLE_PERMISSION_MAPPINGS: Final[dict[str, frozenset[str]]] = {
         "admin.parser.settings",
         "admin.parser.logs",
         "admin.users.view",
+        "admin.statistics.view",
         # Audit access
         "audit.view",
     }),
