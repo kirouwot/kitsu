@@ -52,7 +52,7 @@ class StatisticsService:
         try:
             # Total anime (not soft-deleted)
             total_result = await self.session.execute(
-                select(func.count(Anime.id)).where(Anime.is_deleted == False)
+                select(func.count(Anime.id)).where(Anime.is_deleted.is_(False))
             )
             total_anime = total_result.scalar() or 0
             
@@ -62,7 +62,7 @@ class StatisticsService:
                     Anime.state,
                     func.count(Anime.id)
                 )
-                .where(Anime.is_deleted == False)
+                .where(Anime.is_deleted.is_(False))
                 .group_by(Anime.state)
             )
             state_counts = {state: count for state, count in state_result.fetchall()}
@@ -74,7 +74,7 @@ class StatisticsService:
                     func.count(Anime.id)
                 )
                 .where(and_(
-                    Anime.is_deleted == False,
+                    Anime.is_deleted.is_(False),
                     Anime.status.isnot(None)
                 ))
                 .group_by(Anime.status)
@@ -87,7 +87,7 @@ class StatisticsService:
                 .select_from(Anime)
                 .outerjoin(Release, Release.anime_id == Anime.id)
                 .where(and_(
-                    Anime.is_deleted == False,
+                    Anime.is_deleted.is_(False),
                     Release.id.is_(None)
                 ))
             )
@@ -97,11 +97,11 @@ class StatisticsService:
             anime_with_errors_result = await self.session.execute(
                 select(func.count(Anime.id))
                 .where(and_(
-                    Anime.is_deleted == False,
+                    Anime.is_deleted.is_(False),
                     or_(
                         Anime.state == "broken",
                         and_(
-                            Anime.is_locked == True,
+                            Anime.is_locked.is_(True),
                             Anime.locked_reason.isnot(None)
                         )
                     )
@@ -138,14 +138,14 @@ class StatisticsService:
         try:
             # Total episodes (not soft-deleted)
             total_result = await self.session.execute(
-                select(func.count(Episode.id)).where(Episode.is_deleted == False)
+                select(func.count(Episode.id)).where(Episode.is_deleted.is_(False))
             )
             total_episodes = total_result.scalar() or 0
             
             # Published episodes (not deleted)
             published_result = await self.session.execute(
                 select(func.count(Episode.id))
-                .where(Episode.is_deleted == False)
+                .where(Episode.is_deleted.is_(False))
             )
             published_episodes = published_result.scalar() or 0
             
@@ -153,7 +153,7 @@ class StatisticsService:
             missing_video_result = await self.session.execute(
                 select(func.count(Episode.id))
                 .where(and_(
-                    Episode.is_deleted == False,
+                    Episode.is_deleted.is_(False),
                     or_(
                         Episode.iframe_url.is_(None),
                         Episode.iframe_url == ""
@@ -166,8 +166,8 @@ class StatisticsService:
             episodes_with_errors_result = await self.session.execute(
                 select(func.count(Episode.id))
                 .where(and_(
-                    Episode.is_deleted == False,
-                    Episode.is_locked == True,
+                    Episode.is_deleted.is_(False),
+                    Episode.is_locked.is_(True),
                     Episode.locked_reason.isnot(None)
                 ))
             )
@@ -177,7 +177,7 @@ class StatisticsService:
             draft_result = await self.session.execute(
                 select(func.count(Episode.id))
                 .where(and_(
-                    Episode.is_deleted == False,
+                    Episode.is_deleted.is_(False),
                     Episode.source == "manual"
                 ))
             )
@@ -225,14 +225,14 @@ class StatisticsService:
             disabled_sources_result = await self.session.execute(
                 select(func.count())
                 .select_from(parser_sources)
-                .where(parser_sources.c.enabled == False)
+                .where(parser_sources.c.enabled.is_(False))
             )
             disabled_sources = disabled_sources_result.scalar() or 0
             
             active_sources_result = await self.session.execute(
                 select(func.count())
                 .select_from(parser_sources)
-                .where(parser_sources.c.enabled == True)
+                .where(parser_sources.c.enabled.is_(True))
             )
             active_sources = active_sources_result.scalar() or 0
             
