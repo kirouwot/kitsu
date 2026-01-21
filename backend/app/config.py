@@ -13,6 +13,7 @@ class Settings(BaseModel):
     app_name: str = Field(default="Kitsu Backend")
     debug: bool = Field(default=False)
     database_url: str = Field(default="")
+    redis_url: str = Field(default="")
     allowed_origins: list[str] = Field(default_factory=list)
     db_pool_size: int = Field(default=5)
     db_max_overflow: int = Field(default=10)
@@ -77,6 +78,16 @@ class Settings(BaseModel):
         if not parsed_db.hostname:
             raise ValueError("DATABASE_URL must include hostname")
 
+        redis_url = os.getenv("REDIS_URL", "").strip()
+        if not redis_url:
+            raise ValueError("REDIS_URL environment variable must be set")
+
+        parsed_redis = urlparse(redis_url)
+        if parsed_redis.scheme not in {"redis", "rediss"}:
+            raise ValueError("REDIS_URL must start with 'redis://' or 'rediss://'")
+        if not parsed_redis.hostname:
+            raise ValueError("REDIS_URL must include hostname")
+
         db_pool_size = int(os.getenv("DB_POOL_SIZE", cls.model_fields["db_pool_size"].default))
         if db_pool_size <= 0:
             raise ValueError("DB_POOL_SIZE must be greater than 0")
@@ -107,6 +118,7 @@ class Settings(BaseModel):
             app_name=os.getenv("APP_NAME", cls.model_fields["app_name"].default),
             debug=os.getenv("DEBUG", "false").lower() == "true",
             database_url=database_url,
+            redis_url=redis_url,
             allowed_origins=allowed_origins,
             secret_key=secret_key,
             access_token_expire_minutes=int(

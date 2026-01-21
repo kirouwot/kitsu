@@ -17,6 +17,16 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    container_name: kitsu-redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   backend:
     build:
       context: ./backend
@@ -24,6 +34,8 @@ services:
     restart: unless-stopped
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     env_file:
       - ./backend/.env
@@ -49,4 +61,3 @@ services:
 
 volumes:
   pg_data:
-

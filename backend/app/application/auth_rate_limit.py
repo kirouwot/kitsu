@@ -1,7 +1,7 @@
 import hashlib
 import time
-from collections import defaultdict
-from typing import DefaultDict, List
+
+from app.infra.redis import get_redis
 
 AUTH_RATE_LIMIT_MAX_ATTEMPTS = 5
 AUTH_RATE_LIMIT_WINDOW_SECONDS = 60
@@ -18,33 +18,66 @@ class SoftRateLimiter:
     def __init__(self, max_attempts: int, window_seconds: int) -> None:
         self.max_attempts = max_attempts
         self.window_seconds = window_seconds
-        self._attempts: DefaultDict[str, List[float]] = defaultdict(list)
 
-    def _prune(self, key: str, now: float) -> List[float]:
-        cutoff = now - self.window_seconds
-        attempts = [ts for ts in self._attempts.get(key, []) if ts >= cutoff]
-        if attempts:
-            self._attempts[key] = attempts
-        else:
-            self._attempts.pop(key, None)
-        return attempts
+    async def is_limited(self, key: str, now: float | None = None) -> bool:
+        """Check if the given key is rate limited."""
+        try:
+            redis_client = await get_redis()
+            redis_key = f"rate_limit:auth:{key}"
+            
+            # Get current count
+            count_str = await redis_client.get(redis_key)
+            count = int(count_str) if count_str else 0
+            
+            return count >= self.max_attempts
+        except Exception:
+            # Fail closed: if Redis is unavailable, deny access
+            return True
 
-    def is_limited(self, key: str, now: float | None = None) -> bool:
-        current = now or time.time()
-        attempts = self._prune(key, current)
-        return len(attempts) >= self.max_attempts
+    async def record_failure(self, key: str, now: float | None = None) -> None:
+        """Record a failed attempt for the given key."""
+        try:
+            redis_client = await get_redis()
+            redis_key = f"rate_limit:auth:{key}"
+            
+            # Increment counter atomically
+            count = await redis_client.incr(redis_key)
+            
+            # Set expiry only on first attempt (when count == 1)
+            if count == 1:
+                await redis_client.expire(redis_key, self.window_seconds)
+        except Exception:
+            # Fail closed: if Redis is unavailable, silently fail
+            # The next is_limited() check will fail closed anyway
+            pass
 
-    def record_failure(self, key: str, now: float | None = None) -> None:
-        current = now or time.time()
-        attempts = self._prune(key, current)
-        attempts.append(current)
-        self._attempts[key] = attempts
+    async def reset(self, key: str) -> None:
+        """Reset the rate limit for the given key."""
+        try:
+            redis_client = await get_redis()
+            redis_key = f"rate_limit:auth:{key}"
+            await redis_client.delete(redis_key)
+        except Exception:
+            # Silently fail on reset errors
+            pass
 
-    def reset(self, key: str) -> None:
-        self._attempts.pop(key, None)
-
-    def clear(self) -> None:
-        self._attempts.clear()
+    async def clear(self) -> None:
+        """Clear all rate limit keys. For testing only."""
+        try:
+            redis_client = await get_redis()
+            # Find all rate limit keys
+            cursor = 0
+            while True:
+                cursor, keys = await redis_client.scan(
+                    cursor, match="rate_limit:auth:*", count=100
+                )
+                if keys:
+                    await redis_client.delete(*keys)
+                if cursor == 0:
+                    break
+        except Exception:
+            # Silently fail on clear errors
+            pass
 
 
 def _make_key(scope: str, identifier: str, client_ip: str | None) -> str:
@@ -56,8 +89,8 @@ def _make_key(scope: str, identifier: str, client_ip: str | None) -> str:
     return f"{scope}:{ip_component}:{identifier_component}"
 
 
-def _ensure_not_limited(limiter: SoftRateLimiter, key: str) -> None:
-    if limiter.is_limited(key):
+async def _ensure_not_limited(limiter: SoftRateLimiter, key: str) -> None:
+    if await limiter.is_limited(key):
         raise RateLimitExceededError
 
 
@@ -67,29 +100,30 @@ auth_rate_limiter = SoftRateLimiter(
 )
 
 
-def check_login_rate_limit(email: str, client_ip: str | None = None) -> str:
+async def check_login_rate_limit(email: str, client_ip: str | None = None) -> str:
     key = _make_key("login", email.lower(), client_ip)
-    _ensure_not_limited(auth_rate_limiter, key)
+    await _ensure_not_limited(auth_rate_limiter, key)
     return key
 
 
-def record_login_failure(key: str) -> None:
-    auth_rate_limiter.record_failure(key)
+async def record_login_failure(key: str) -> None:
+    await auth_rate_limiter.record_failure(key)
 
 
-def reset_login_limit(key: str) -> None:
-    auth_rate_limiter.reset(key)
+async def reset_login_limit(key: str) -> None:
+    await auth_rate_limiter.reset(key)
 
 
-def check_refresh_rate_limit(token_identifier: str, client_ip: str | None = None) -> str:
+async def check_refresh_rate_limit(token_identifier: str, client_ip: str | None = None) -> str:
     key = _make_key("refresh", token_identifier, client_ip)
-    _ensure_not_limited(auth_rate_limiter, key)
+    await _ensure_not_limited(auth_rate_limiter, key)
     return key
 
 
-def record_refresh_failure(key: str) -> None:
-    auth_rate_limiter.record_failure(key)
+async def record_refresh_failure(key: str) -> None:
+    await auth_rate_limiter.record_failure(key)
 
 
-def reset_refresh_limit(key: str) -> None:
-    auth_rate_limiter.reset(key)
+async def reset_refresh_limit(key: str) -> None:
+    await auth_rate_limiter.reset(key)
+

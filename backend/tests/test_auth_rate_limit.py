@@ -11,6 +11,7 @@ os.environ.setdefault("ALLOWED_ORIGINS", "http://localhost:3000")
 os.environ.setdefault(
     "DATABASE_URL", "postgresql+asyncpg://user:pass@localhost:5432/db"
 )
+os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 
 from app.dependencies import get_db  # noqa: E402
 from app.errors import AppError, AuthError, error_payload  # noqa: E402
@@ -23,10 +24,10 @@ from app.application.auth_rate_limit import (  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
-def clear_rate_limiter():
-    auth_rate_limiter.clear()
+async def clear_rate_limiter():
+    await auth_rate_limiter.clear()
     yield
-    auth_rate_limiter.clear()
+    await auth_rate_limiter.clear()
 
 
 def make_app(
