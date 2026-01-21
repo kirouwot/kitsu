@@ -1,5 +1,6 @@
 import os
 from typing import Iterable
+import asyncio
 
 from fastapi import FastAPI, status
 from fastapi.responses import JSONResponse
@@ -24,10 +25,23 @@ from app.application.auth_rate_limit import (  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
-async def clear_rate_limiter():
-    await auth_rate_limiter.clear()
+def clear_rate_limiter():
+    # Clear before test
+    async def clear_before():
+        await auth_rate_limiter.clear()
+        from app.infra.redis import close_redis
+        await close_redis()
+    
+    asyncio.run(clear_before())
     yield
-    await auth_rate_limiter.clear()
+    
+    # Clear after test
+    async def clear_after():
+        await auth_rate_limiter.clear()
+        from app.infra.redis import close_redis
+        await close_redis()
+    
+    asyncio.run(clear_after())
 
 
 def make_app(
@@ -74,7 +88,7 @@ def make_app(
 
 
 def test_login_rate_limit_exceeded(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def failing_login(_db, _email, _password):
+    async def failing_login(_user_port, _token_port, _email, _password):
         raise AuthError()
 
     client = make_app(monkeypatch, login_handler=failing_login)
@@ -95,7 +109,7 @@ def test_login_success_resets_limit(monkeypatch: pytest.MonkeyPatch) -> None:
         ["fail"] * 2 + ["success"] + ["fail"] * (AUTH_RATE_LIMIT_MAX_ATTEMPTS + 1)
     )
 
-    async def login_handler(_db, _email, _password):
+    async def login_handler(_user_port, _token_port, _email, _password):
         result = next(outcomes)
         if result == "fail":
             raise AuthError()
@@ -121,7 +135,7 @@ def test_login_success_resets_limit(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_refresh_rate_limit_exceeded(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def failing_refresh(_db, _token_hash):
+    async def failing_refresh(_token_port, _token_hash):
         raise AuthError()
 
     client = make_app(monkeypatch, refresh_handler=failing_refresh)
