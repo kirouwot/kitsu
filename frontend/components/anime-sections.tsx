@@ -29,12 +29,12 @@ const AnimeSections = (props: Props) => {
         <div className="flex items-center gap-4">
           <h2 className="text-2xl md:text-3xl font-bold">{props.title}</h2>
           <Badge variant="secondary" className="text-xs hidden sm:inline-flex">
-            {props.trendingAnime.length} аниме
+            {props.trendingAnime.length} anime
           </Badge>
         </div>
         
         <Button variant="ghost" className="gap-2 group">
-          Показать все
+          Show all
           <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
         </Button>
       </div>

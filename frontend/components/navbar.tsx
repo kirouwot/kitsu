@@ -22,17 +22,17 @@ import { ThemeToggle } from "./theme-toggle";
 
 const menuItems: Array<{ title: string; href?: string }> = [
   {
-    title: "Главная",
+    title: "Home",
     href: ROUTES.HOME,
   },
   // {
-  //   title: "Каталог",
+  //   title: "Catalog",
   // },
   // {
-  //   title: "Расписание",
+  //   title: "Schedule",
   // },
   // {
-  //   title: "Случайное",
+  //   title: "Random",
   // },
 ];
 

@@ -32,7 +32,7 @@ const FeaturedCollection = ({ featuredAnime, loading }: Props) => {
   if (shouldShowSkeleton) return <LoadingSkeleton />;
   return (
     <Container className="flex flex-col gap-6 items-center lg:items-start py-12">
-      <h2 className="text-2xl md:text-3xl font-bold">Подборки</h2>
+      <h2 className="text-2xl md:text-3xl font-bold">Featured Collections</h2>
       <div className="grid w-full gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
         {featuredAnime.map((category, idx) =>
           hasEnoughAnime(category) ? (
@@ -80,10 +80,10 @@ const FeaturedCollectionCard = ({ title, anime }: { title: string; anime: IAnime
         {/* Content */}
         <div className="absolute inset-0 flex flex-col justify-end p-8">
           <h3 className="text-2xl font-bold mb-2">{title}</h3>
-          <p className="text-gray-300 mb-4">{anime.length} аниме</p>
+          <p className="text-gray-300 mb-4">{anime.length} anime</p>
           
           <Button className="w-fit gap-2 bg-primary hover:bg-primary/90">
-            Смотреть
+            Watch
             <ArrowRight className="w-4 h-4" />
           </Button>
         </div>

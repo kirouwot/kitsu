@@ -175,7 +175,7 @@ const ContinueWatching = () => {
     <Container className="flex flex-col gap-6 py-12 items-center lg:items-start">
       <div className="flex items-center gap-3">
         <History className="w-6 h-6" />
-        <h2 className="text-2xl md:text-3xl font-bold">Продолжить просмотр</h2>
+        <h2 className="text-2xl md:text-3xl font-bold">Continue Watching</h2>
       </div>
       
       {/* Горизонтальный скролл для мобильных, grid для десктопа */}

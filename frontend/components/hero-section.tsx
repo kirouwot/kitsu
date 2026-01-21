@@ -107,13 +107,13 @@ const HeroCarouselItem = ({ anime }: { anime: SpotlightAnime }) => {
             {anime.episodes.sub && (
               <Badge className="bg-blue-500/90 backdrop-blur-sm flex items-center gap-1">
                 <Captions className="w-3 h-3" />
-                <span>{anime.episodes.sub} эп</span>
+                <span>{anime.episodes.sub} ep</span>
               </Badge>
             )}
             {anime.episodes.dub && (
               <Badge className="bg-green-500/90 backdrop-blur-sm flex items-center gap-1">
                 <Mic className="w-3 h-3" />
-                <span>{anime.episodes.dub} эп</span>
+                <span>{anime.episodes.dub} ep</span>
               </Badge>
             )}
             {anime.type && <Badge variant="secondary">{anime.type}</Badge>}
@@ -136,7 +136,7 @@ const HeroCarouselItem = ({ anime }: { anime: SpotlightAnime }) => {
               className="gap-2 bg-primary hover:bg-primary/90 h-12 md:h-14 px-6 md:px-8 text-base md:text-lg rounded-xl"
             >
               <Info className="w-5 h-5" />
-              Подробнее
+              Learn More
             </ButtonLink>
             <Button
               size="lg"

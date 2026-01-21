@@ -115,7 +115,7 @@ const AnimeCard = ({
                   <div className="flex flex-col gap-1 relative z-10">
                     <h5 className="line-clamp-1 font-semibold text-white">{props.title}</h5>
                     <p className="text-xs text-gray-300">
-                      Серия {continueWatching.episode}
+                      Episode {continueWatching.episode}
                     </p>
                     {continueWatching.isCompleted ? (
                       <span className="text-xs font-semibold text-emerald-400">
@@ -130,7 +130,7 @@ const AnimeCard = ({
                         "mt-1 w-fit text-xs pointer-events-none",
                       )}
                     >
-                      Продолжить
+                      Continue
                     </span>
                   </div>
                 ) : (

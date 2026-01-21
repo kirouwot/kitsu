@@ -18,17 +18,17 @@ const Footer = () => {
               <span className="text-xl font-bold gradient-text">Kitsune</span>
             </div>
             <p className="text-sm text-muted-foreground">
-              Лучший сайт для просмотра аниме онлайн
+              Best site for watching anime online
             </p>
           </div>
 
           {/* Ссылки */}
           <div>
-            <h4 className="font-semibold mb-4">Навигация</h4>
+            <h4 className="font-semibold mb-4">Navigation</h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li>
                 <Link href="/" className="hover:text-primary transition-colors">
-                  Главная
+                  Home
                 </Link>
               </li>
               {/* Uncomment when catalog is ready
@@ -43,15 +43,15 @@ const Footer = () => {
 
           {/* Информация */}
           <div>
-            <h4 className="font-semibold mb-4">Информация</h4>
+            <h4 className="font-semibold mb-4">Information</h4>
             <p className="text-sm text-muted-foreground">
-              Kitsune не хранит файлы на сервере. Мы только предоставляем ссылки на контент, размещенный на сторонних сервисах.
+              Kitsune does not store any files on the server. We only link to media which is hosted on 3rd party services.
             </p>
           </div>
 
           {/* Соцсети */}
           <div>
-            <h4 className="font-semibold mb-4">Сообщество</h4>
+            <h4 className="font-semibold mb-4">Community</h4>
             <div className="flex gap-3">
               <a href="https://github.com/Dovakiin0/Kitsune" target="_blank" rel="noopener noreferrer">
                 <Button size="icon" variant="outline" className="rounded-full">
@@ -70,7 +70,7 @@ const Footer = () => {
         <Separator className="my-8" />
 
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4 text-sm text-muted-foreground">
-          <p>&copy; 2024 Kitsune. Все права защищены.</p>
+          <p>&copy; 2024 Kitsune. All rights reserved.</p>
           <p>Made with ❤️</p>
         </div>
       </Container>
