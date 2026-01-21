@@ -172,31 +172,56 @@ const ContinueWatching = () => {
   if (!anime.length) return null;
 
   return (
-    <Container className="flex flex-col gap-5 py-10 items-center lg:items-start">
-      <div className="flex items-center gap-2">
-        <History />
-        <h5 className="text-2xl font-bold">Continue Watching</h5>
+    <Container className="flex flex-col gap-6 py-12 items-center lg:items-start">
+      <div className="flex items-center gap-3">
+        <History className="w-6 h-6" />
+        <h2 className="text-2xl md:text-3xl font-bold">Продолжить просмотр</h2>
       </div>
-      <div className="grid lg:grid-cols-5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-7 w-full gap-5 content-center">
-        {anime?.map(
-          (ani, idx) =>
-            ani.episode && (
-              <BlurFade key={ani.id ?? idx} delay={idx * 0.05} inView>
-                <AnimeCard
-                  title={ani.title}
-                  poster={ani.poster}
-                  className="self-center justify-self-center"
-                  href={`${ROUTES.ANIME_DETAILS}/${ani.id}`}
-                  watchDetail={null}
-                  continueWatching={{
-                    episode: ani.episode,
-                    progressPercent: ani.progressPercent,
-                    isCompleted: ani.isCompleted,
-                  }}
-                />
-              </BlurFade>
-            ),
-        )}
+      
+      {/* Горизонтальный скролл для мобильных, grid для десктопа */}
+      <div className="w-full overflow-x-auto hide-scrollbar pb-4 lg:overflow-visible">
+        <div className="flex gap-6 lg:hidden">
+          {anime?.map(
+            (ani, idx) =>
+              ani.episode && (
+                <div key={ani.id ?? idx} className="min-w-[200px] flex-shrink-0">
+                  <AnimeCard
+                    title={ani.title}
+                    poster={ani.poster}
+                    href={`${ROUTES.ANIME_DETAILS}/${ani.id}`}
+                    watchDetail={null}
+                    continueWatching={{
+                      episode: ani.episode,
+                      progressPercent: ani.progressPercent,
+                      isCompleted: ani.isCompleted,
+                    }}
+                  />
+                </div>
+              ),
+          )}
+        </div>
+        
+        <div className="hidden lg:grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-6">
+          {anime?.map(
+            (ani, idx) =>
+              ani.episode && (
+                <BlurFade key={ani.id ?? idx} delay={idx * 0.05} inView>
+                  <AnimeCard
+                    title={ani.title}
+                    poster={ani.poster}
+                    className="self-center justify-self-center"
+                    href={`${ROUTES.ANIME_DETAILS}/${ani.id}`}
+                    watchDetail={null}
+                    continueWatching={{
+                      episode: ani.episode,
+                      progressPercent: ani.progressPercent,
+                      isCompleted: ani.isCompleted,
+                    }}
+                  />
+                </BlurFade>
+              ),
+          )}
+        </div>
       </div>
     </Container>
   );
