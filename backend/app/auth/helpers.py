@@ -1,3 +1,23 @@
+"""
+DEPRECATED AND UNUSED: This module has been completely phased out.
+
+This file is kept ONLY for reference and will be removed in REFACTOR-03.
+DO NOT USE. DO NOT IMPORT. DO NOT EXTEND.
+
+For permission checks, use ONLY:
+- app.services.admin.permission_service.PermissionService dependency injection
+- rbac_contract.py for permission definitions
+
+SECURITY WARNING: This module contains legacy helpers with security risks.
+Any usage of this module is a SECURITY VIOLATION.
+
+REFACTOR-02 STATUS: ✅ ALL USAGE ELIMINATED
+- Parser admin router migrated to PermissionService
+- All admin endpoints use PermissionService
+- No production code uses these helpers
+
+TODO REFACTOR-03: Delete this file entirely
+"""
 from __future__ import annotations
 
 import logging
