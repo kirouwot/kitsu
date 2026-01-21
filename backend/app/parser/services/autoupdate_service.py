@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Mapping, Sequence
@@ -31,8 +30,6 @@ from ..tables import (
     parser_sources,
 )
 from .sync_service import get_parser_settings
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,21 +85,6 @@ def _chunked(values: Sequence[str], chunk_size: int) -> list[list[str]]:
 
 
 class ParserEpisodeAutoupdateService:
-    """
-    Episode auto-update service with compliance checks.
-    
-    COMPLIANCE NOTE (PARSER-02):
-    This service implements ONLY compliance checks - it does NOT implement
-    auto-scheduling or background workers. Auto-parsing logic is out of scope
-    for this task and should be implemented in a separate task.
-    
-    This service respects:
-    - Manual > Parser invariant (does not update manual episodes)
-    - Lock enforcement (respects locked fields)
-    - Dry-run mode (from parser_settings)
-    - Source marking (sets source="parser")
-    """
-    
     def __init__(
         self,
         session: AsyncSession,

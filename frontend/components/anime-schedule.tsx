@@ -9,23 +9,11 @@ import Link from "next/link";
 import { ROUTES } from "@/constants/routes";
 
 function AnimeSchedule() {
-  const [currentDate] = React.useState(
-    () => new Date("2024-01-01T00:00:00.000Z"),
-  );
-  const currentDay = useMemo(
-    () =>
-      currentDate
-        .toLocaleString("en-US", {
-          weekday: "long",
-          timeZone: "UTC",
-        })
-        .toLowerCase(),
-    [currentDate],
-  );
-  const currentDayIndex = useMemo(
-    () => currentDate.getUTCDay(),
-    [currentDate],
-  );
+  const currentDate = new Date();
+  const currentDay = currentDate
+    .toLocaleString("en-US", { weekday: "long" })
+    .toLowerCase();
+  const currentDayIndex = currentDate.getDay();
   const daysOfWeek = [
     "sunday",
     "monday",
@@ -37,12 +25,13 @@ function AnimeSchedule() {
   ];
   const [currentSelectedTab, setCurrentSelectedTab] =
     React.useState<string>(currentDay);
+
   const defaultTab = daysOfWeek.includes(currentDay) ? currentDay : "monday";
 
   const selectedDate = useMemo(() => {
     const date = getDateForWeekday(currentSelectedTab);
-    date.setUTCDate(date.getUTCDate() + 1);
-    return date.toLocaleDateString("en-US", { timeZone: "UTC" });
+    date.setDate(date.getDate() + 1); // idk why i had to add 1 day, but the schedule API returns the next day
+    return date.toLocaleDateString("en-US");
   }, [currentSelectedTab, getDateForWeekday]);
 
   const [shouldLoadSchedule, setShouldLoadSchedule] =
@@ -62,7 +51,7 @@ function AnimeSchedule() {
     const targetIndex = daysOfWeek.indexOf(targetDay);
     const date = new Date(currentDate);
     const diff = targetIndex - currentDayIndex;
-    date.setUTCDate(currentDate.getUTCDate() + diff);
+    date.setDate(currentDate.getDate() + diff);
     return date;
   }
 
@@ -83,7 +72,6 @@ function AnimeSchedule() {
               {getDateForWeekday(day).toLocaleDateString("en-US", {
                 month: "short",
                 day: "numeric",
-                timeZone: "UTC",
               })}
             </TabsTrigger>
           ))}

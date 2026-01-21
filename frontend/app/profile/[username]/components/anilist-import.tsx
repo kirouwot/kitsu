@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { useGetAnilistAnimes } from "@/mutation/get-anilist-animes";
 import { toast } from "sonner";
 import { AnilistMediaList } from "@/types/anilist-animes";
-import { importAniListAnimes } from "@/external/proxy/proxy.adapter";
+import { api } from "@/lib/api";
 import useBookMarks from "@/hooks/use-get-bookmark";
 import { Badge } from "@/components/ui/badge";
 
@@ -40,10 +40,17 @@ function AnilistImport({ disabled = false }: AnilistImportProps) {
     }
     setIsLoading(true);
 
-    const data = await getAnilistAnime.mutateAsync(username);
-    if (data) {
-      setAnimes(data.MediaListCollection.lists);
-      setStep(2);
+    try {
+      const data = await getAnilistAnime.mutateAsync(username);
+      if (data) {
+        setAnimes(data.MediaListCollection.lists);
+        setStep(2);
+      }
+    } catch (error) {
+      console.error("Error importing Anilist anime:", error);
+      toast.error("Failed to import Anilist anime", {
+        style: { background: "red" },
+      });
     }
 
     setIsLoading(false);
@@ -58,26 +65,40 @@ function AnilistImport({ disabled = false }: AnilistImportProps) {
     }
     setIsLoading(true);
 
-    // Component calls ONLY adapter functions
-    // No knowledge of URLs, axios, retry logic, or external API contracts
-    const data = await importAniListAnimes(animes);
+    try {
+      const { data } = await api.post("/api/import/anilist", {
+        animes,
+      });
+      if (!data || !data.animes) {
+        toast.error("No anime found", {
+          style: { background: "red" },
+        });
+        setIsLoading(false);
+        return;
+      }
 
-    const animeList = data.animes;
-    for (const anime of animeList) {
-      await bookmark.createOrUpdateBookMark(
-        anime.id,
-        anime.title,
-        anime.thumbnail,
-        anime.status,
-        false,
-      );
+      const animeList = data.animes;
+      for (const anime of animeList) {
+        await bookmark.createOrUpdateBookMark(
+          anime.id,
+          anime.title,
+          anime.thumbnail,
+          anime.status,
+          false,
+        );
+      }
+
+      toast.success("Anilist anime imported successfully", {
+        style: { background: "green" },
+      });
+      setOpen(false);
+      reset();
+    } catch (error) {
+      console.error("Error importing Anilist anime:", error);
+      toast.error("Failed to import Anilist anime", {
+        style: { background: "red" },
+      });
     }
-
-    toast.success("Anilist anime imported successfully", {
-      style: { background: "green" },
-    });
-    setOpen(false);
-    reset();
 
     setIsLoading(false);
   };

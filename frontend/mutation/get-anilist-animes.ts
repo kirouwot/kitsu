@@ -1,10 +1,35 @@
+import { api } from "@/lib/api";
+import { AnilistAnimes } from "@/types/anilist-animes";
 import { useMutation } from "react-query";
-import { fetchUserAnimeList } from "@/external/anilist/anilist.adapter";
 
 const getAnilistAnimes = async (username: string) => {
-  // Mutation layer calls ONLY adapter functions
-  // No knowledge of GraphQL, axios, retry logic, or external API contracts
-  return fetchUserAnimeList(username);
+  const res = await api.post("https://graphql.anilist.co", {
+    query: `
+      query ($username: String) {
+         MediaListCollection(type: ANIME, userName: $username) {
+          lists {
+            name
+            entries {
+              media {
+                id
+                bannerImage
+                idMal
+                title {
+                  english
+                }
+              }
+            }
+            status
+          }
+        }
+      }
+    `,
+    variables: {
+      username,
+    },
+  });
+  const data = res.data as AnilistAnimes;
+  return data.data;
 };
 
 export const useGetAnilistAnimes = () => {

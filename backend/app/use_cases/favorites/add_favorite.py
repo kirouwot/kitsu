@@ -21,10 +21,6 @@ async def get_favorite(
     return await favorite_repo.get(user_id, anime_id)
 
 
-def _favorite_id_for(user_id: uuid.UUID, anime_id: uuid.UUID) -> uuid.UUID:
-    return uuid.uuid5(uuid.NAMESPACE_URL, f"kitsu.favorite:{user_id}:{anime_id}")
-
-
 async def _apply_add_favorite(
     favorite_repo: FavoriteRepository,
     user_id: uuid.UUID,
@@ -83,7 +79,7 @@ async def add_favorite(
     if existing:
         raise ConflictError("Favorite already exists")
 
-    favorite_id = _favorite_id_for(user_id, anime_id)
+    favorite_id = uuid.uuid4()
     created_at = datetime.now(timezone.utc)
     result = FavoriteRead(id=favorite_id, anime_id=anime_id, created_at=created_at)
 

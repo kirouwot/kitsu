@@ -5,11 +5,6 @@ from .favorite import Favorite
 from .release import Release
 from .user import User
 from .watch_progress import WatchProgress
-from .role import Role
-from .permission import Permission
-from .role_permission import RolePermission
-from .user_role import UserRole
-from .audit_log import AuditLog
 
 __all__ = [
     "Base",
@@ -19,9 +14,4 @@ __all__ = [
     "Episode",
     "Favorite",
     "WatchProgress",
-    "Role",
-    "Permission",
-    "RolePermission",
-    "UserRole",
-    "AuditLog",
 ]

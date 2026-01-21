@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, Query
 
+from ..auth.enforcement_matrix import require_enforced_permission
 from ..dependencies import (
     get_current_user,
     get_watch_progress_port,
@@ -18,6 +19,7 @@ async def upsert_progress(
     watch_repo=Depends(get_watch_progress_port),
     watch_repo_factory=Depends(get_watch_progress_port_factory),
     current_user: User = Depends(get_current_user),
+    _=Depends(require_enforced_permission("POST", "/watch/progress")),
 ) -> WatchProgressRead:
     return await update_progress(
         watch_repo,

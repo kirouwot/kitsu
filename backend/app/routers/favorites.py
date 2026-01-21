@@ -2,6 +2,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
 
+from ..auth.enforcement_matrix import require_enforced_permission
 from ..dependencies import (
     get_current_user,
     get_favorite_port,
@@ -36,6 +37,7 @@ async def create_favorite(
     favorite_repo=Depends(get_favorite_port),
     favorite_repo_factory=Depends(get_favorite_port_factory),
     current_user: User = Depends(get_current_user),
+    _=Depends(require_enforced_permission("POST", "/favorites")),
 ) -> FavoriteRead:
     return await add_favorite_use_case(
         favorite_repo,
@@ -51,6 +53,7 @@ async def delete_favorite(
     favorite_repo=Depends(get_favorite_port),
     favorite_repo_factory=Depends(get_favorite_port_factory),
     current_user: User = Depends(get_current_user),
+    _=Depends(require_enforced_permission("DELETE", "/favorites/{anime_id}")),
 ) -> None:
     await remove_favorite_use_case(
         favorite_repo,

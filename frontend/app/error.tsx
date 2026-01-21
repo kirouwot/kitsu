@@ -6,12 +6,6 @@ import ErrorImage from "@/assets/error.gif";
 import { ROUTES } from "@/constants/routes";
 import { Button } from "@/components/ui/button";
 import { ButtonLink } from "@/components/common/button-link";
-import {
-  getErrorHandlingStrategy,
-  logErrorByPolicy,
-  getUserFriendlyErrorMessage,
-} from "@/lib/error-boundary-policy";
-import { assertRenderMode } from "@/lib/render-mode";
 
 export default function Error({
   error,
@@ -20,18 +14,10 @@ export default function Error({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  // Declare render mode - client component
-  const RENDER_MODE = "client" as const;
-  assertRenderMode(RENDER_MODE);
-  
   useEffect(() => {
-    // Use error handling policy to determine logging strategy
-    const strategy = getErrorHandlingStrategy(error);
-    logErrorByPolicy(error, strategy);
+    // Log the error to an error reporting service
+    console.error(error);
   }, [error]);
-
-  // Get user-friendly error message from policy
-  const errorMessage = getUserFriendlyErrorMessage(error);
 
   return (
     <div className="w-[100dvw] h-[100dvh]">
@@ -44,9 +30,6 @@ export default function Error({
           className=""
         />
         <p className="font-bold text-2xl">Something went wrong!</p>
-        <p className="text-sm text-slate-400 max-w-md text-center px-4">
-          {errorMessage}
-        </p>
         <div className="flex gap-3 items-center">
           <ButtonLink href={ROUTES.HOME}>Back to Home</ButtonLink>
           <Button onClick={() => reset()} className="" variant={"secondary"}>

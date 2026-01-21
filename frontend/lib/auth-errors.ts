@@ -12,101 +12,83 @@ export type ApiError = {
 export const normalizeApiError = (error: unknown): ApiError => {
   if (error instanceof AxiosError) {
     const status = error.response?.status;
-    
-    // Backend contract: all API errors have { error: { code, message, details } }
-    const errorEnvelope = error.response?.data as {
-      error?: {
-        code: string;
-        message: string;
-        details?: unknown;
-      };
+    const payload = error.response?.data as {
+      code?: string;
+      message?: string;
+      details?: unknown;
     } | undefined;
-    
-    // If backend returned canonical error format, use it
-    if (errorEnvelope?.error) {
+    const baseMessage =
+      typeof payload?.message === "string"
+        ? payload.message
+        : error.message || "Request failed. Please try again.";
+    if (status === 401) {
       return {
-        code: errorEnvelope.error.code,
-        message: errorEnvelope.error.message,
+        code: payload?.code || "unauthorized",
+        message: payload?.message || "Session expired. Please sign in again.",
+        details: payload?.details,
         status,
-        details: errorEnvelope.error.details,
       };
     }
-    
-    // Network-level errors (timeouts, connection failures)
-    // These are NOT backend errors - they're Axios/network errors
+    if (status === 403) {
+      return {
+        code: payload?.code || "forbidden",
+        message: payload?.message || "Access denied.",
+        details: payload?.details,
+        status,
+      };
+    }
+    if (status && status >= 500) {
+      return {
+        code: payload?.code || "server_error",
+        message:
+          payload?.message ||
+          "Something went wrong on our side. Please try again.",
+        details: payload?.details,
+        status,
+      };
+    }
     if (error.code === "ECONNABORTED") {
       return {
-        code: "network_timeout",
+        code: "timeout",
         message: "Request timed out. Please retry.",
         status,
+        details: payload?.details,
       };
     }
-    
-    if (!error.response) {
-      // No response = network error
-      return {
-        code: "network_error",
-        message: error.message || "Network error. Please check your connection.",
-        status,
-      };
-    }
-    
-    // If we reach here, backend violated the contract
-    // This should never happen after FIX-02A
     return {
-      code: "malformed_error",
-      message: "Server returned malformed error response.",
+      code: payload?.code || "request_failed",
+      message: baseMessage,
       status,
+      details: payload?.details,
     };
   }
-  
-  // Already normalized ApiError
   if (error && typeof error === "object") {
     const candidate = error as ApiError;
     if (
       typeof candidate.code === "string" &&
-      typeof candidate.message === "string"
+      typeof candidate.message === "string" &&
+      (candidate.status === undefined || typeof candidate.status === "number")
     ) {
-      return candidate;
+      return {
+        code: candidate.code,
+        message: candidate.message,
+        status: candidate.status,
+        details: candidate.details,
+      };
     }
   }
-  
-  // Unexpected error type
   return {
-    code: "unexpected_error",
-    message: String(error) || "Unexpected error occurred.",
+    code: "unknown_error",
+    message: "Unexpected error occurred.",
   };
 };
 
-type AuthFailureState = {
-  authFailureHandlers: Set<(redirectTo: string) => void>;
-  authFailureCommitted: boolean;
-};
-
-const createAuthFailureState = (): AuthFailureState => ({
-  authFailureHandlers: new Set<(redirectTo: string) => void>(),
-  authFailureCommitted: false,
-});
-
-const getIsServer = () => typeof document === "undefined";
-
-let clientAuthFailureState: AuthFailureState | null = null;
-
-const getAuthFailureState = (): AuthFailureState => {
-  if (getIsServer()) {
-    return createAuthFailureState();
-  }
-  if (!clientAuthFailureState) {
-    clientAuthFailureState = createAuthFailureState();
-  }
-  return clientAuthFailureState;
-};
+const authFailureHandlers = new Set<(redirectTo: string) => void>();
 
 export const setAuthFailureHandler = (handler: (redirectTo: string) => void) => {
-  const state = getAuthFailureState();
-  state.authFailureHandlers.add(handler);
+  authFailureHandlers.add(handler);
   return () => {
-    state.authFailureHandlers.delete(handler);
+    authFailureHandlers.delete(handler);
   };
 };
 
@@ -117,15 +99,16 @@ const navigateHome = () => {
   window.location.replace(ROUTES.HOME);
 };
 
+let authFailureCommitted = false;
+
 const handleAuthFailure = () => {
-  const state = getAuthFailureState();
-  if (state.authFailureCommitted) {
+  if (authFailureCommitted) {
     return;
   }
-  state.authFailureCommitted = true;
+  authFailureCommitted = true;
   getAuthStore().getState().clearAuth();
-  if (state.authFailureHandlers.size > 0) {
-    state.authFailureHandlers.forEach((handler) => handler(ROUTES.HOME));
+  if (authFailureHandlers.size > 0) {
+    authFailureHandlers.forEach((handler) => handler(ROUTES.HOME));
     return;
   }
   navigateHome();
@@ -135,15 +118,12 @@ const handleAuthFailure = () => {
 export const handleAuthError = (error: unknown): never => {
   const normalizedError = normalizeApiError(error);
 
-  // Backend contract: use error.code to determine auth failures
-  // AUTH_ERROR = 401 (expired/invalid token)
-  // PERMISSION_DENIED = 403 (revoked token or insufficient permissions)
-  if (normalizedError.code === "AUTH_ERROR") {
+  if (normalizedError.status === 401) {
     handleAuthFailure();
     throw normalizedError;
   }
 
-  if (normalizedError.code === "PERMISSION_DENIED") {
+  if (normalizedError.status === 403) {
     handleAuthFailure();
     throw normalizedError;
   }

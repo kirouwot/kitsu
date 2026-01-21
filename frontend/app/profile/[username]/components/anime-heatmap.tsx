@@ -1,6 +1,3 @@
-"use client";
-
-import { useMemo, useState } from "react";
 import CalendarHeatmap from "react-calendar-heatmap";
 import styles from "../heatmap.module.css";
 import { Tooltip } from "react-tooltip";
@@ -18,22 +15,8 @@ function AnimeHeatmap() {
   const heatmapData: HeatmapValue[] = [];
   const totalContributionCount = 0;
 
-  const [baseDate] = useState(() => new Date("2024-01-01T00:00:00.000Z"));
-  const dateOptions: Intl.DateTimeFormatOptions = {
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC",
-  };
-  const startDate = useMemo(() => {
-    const date = new Date(baseDate);
-    date.setUTCMonth(0, 1);
-    return date;
-  }, [baseDate]);
-  const endDate = useMemo(() => {
-    const date = new Date(baseDate);
-    date.setUTCMonth(11, 31);
-    return date;
-  }, [baseDate]);
+  const startDate = new Date(new Date().setMonth(0, 1));
+  const endDate = new Date(new Date().setMonth(11, 31));
 
   const getClassForValue = (value: HeatmapValue | null): string => {
     if (!value || value.count === 0) {
@@ -64,10 +47,10 @@ function AnimeHeatmap() {
         "data-tooltip-content": "No episodes watched",
       };
     }
-    const formatedDate = new Date(val.date).toLocaleDateString(
-      "en-US",
-      dateOptions,
-    );
+    const formatedDate = new Date(val.date).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    });
     return {
       "data-tooltip-id": "heatmap-tooltip",
       "data-tooltip-content": `Watched ${val.count} episodes on ${formatedDate}`,

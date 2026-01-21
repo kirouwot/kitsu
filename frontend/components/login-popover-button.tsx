@@ -33,51 +33,63 @@ function LoginPopoverButton() {
 
   const fetchProfile = async (
     accessToken: string,
-  ): Promise<{ email: string; id: string }> => {
-    const profile = await api.get("/users/me", {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    return {
-      email: (profile.data as any).email,
-      id: (profile.data as any).id,
-    };
+    fallbackEmail: string,
+  ): Promise<{ email: string; id?: string }> => {
+    try {
+      const profile = await api.get("/users/me", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      return {
+        email: (profile.data as any)?.email || fallbackEmail,
+        id: (profile.data as any)?.id,
+      };
+    } catch {
+      return { email: fallbackEmail, id: undefined };
+    }
   };
 
   const loginWithEmail = async () => {
-    if (formData.email === "" || formData.password === "") {
-      toast.error("Please fill in all fields", {
+    try {
+      if (formData.email === "" || formData.password === "") {
+        toast.error("Please fill in all fields", {
+          style: { background: "red" },
+        });
+        return;
+      }
+
+      const { data } = await api.post("/auth/login", {
+        email: formData.email,
+        password: formData.password,
+      });
+
+      const tokens = resolveTokens(data);
+      if (!tokens.accessToken || !tokens.refreshToken) {
+        throw new Error("Missing tokens in auth response");
+      }
+
+      const profile = await fetchProfile(tokens.accessToken, formData.email);
+      const userEmail = profile.email;
+      const userId = profile.id;
+
+      toast.success("Login successful", { style: { background: "green" } });
+      clearForm();
+      setAuth({
+        id: userId,
+        email: userEmail,
+        username: userEmail?.split("@")[0],
+        avatar: "",
+        collectionId: "",
+        collectionName: "",
+        autoSkip: false,
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+      });
+    } catch (e) {
+      console.error("Login error:", e);
+      toast.error("Invalid email or password", {
         style: { background: "red" },
       });
-      return;
     }
-
-    const { data } = await api.post("/auth/login", {
-      email: formData.email,
-      password: formData.password,
-    });
-
-    const tokens = resolveTokens(data);
-    if (!tokens.accessToken || !tokens.refreshToken) {
-      throw new Error("Missing tokens in auth response");
-    }
-
-    const profile = await fetchProfile(tokens.accessToken);
-    const userEmail = profile.email;
-    const userId = profile.id;
-
-    toast.success("Login successful", { style: { background: "green" } });
-    clearForm();
-    setAuth({
-      id: userId,
-      email: userEmail,
-      username: userEmail.split("@")[0],
-      avatar: "",
-      collectionId: "",
-      collectionName: "",
-      autoSkip: false,
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
-    });
   };
 
   const signupWithEmail = async () => {
@@ -95,36 +107,42 @@ function LoginPopoverButton() {
       return;
     }
 
-    const { data } = await api.post("/auth/register", {
-      email: formData.email,
-      password: formData.password,
-    });
+    try {
+      const { data } = await api.post("/auth/register", {
+        email: formData.email,
+        password: formData.password,
+      });
 
-    toast.success("Account created successfully. You are now logged in.", {
-      style: { background: "green" },
-    });
-    const tokens = resolveTokens(data);
-    if (!tokens.accessToken || !tokens.refreshToken) {
-      throw new Error("Missing tokens in auth response");
+      toast.success("Account created successfully. You are now logged in.", {
+        style: { background: "green" },
+      });
+      const tokens = resolveTokens(data);
+      if (!tokens.accessToken || !tokens.refreshToken) {
+        throw new Error("Missing tokens in auth response");
+      }
+
+      const profile = await fetchProfile(tokens.accessToken, formData.email);
+      const userEmail = profile.email;
+      const userId = profile.id;
+
+      setAuth({
+        id: userId,
+        email: userEmail,
+        username: userEmail?.split("@")[0],
+        avatar: "",
+        collectionId: "",
+        collectionName: "",
+        autoSkip: false,
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+      });
+      clearForm();
+      setTabValue("login");
+    } catch {
+      toast.error("Signup failed. Please try again.", {
+        style: { background: "red" },
+      });
     }
-
-    const profile = await fetchProfile(tokens.accessToken);
-    const userEmail = profile.email;
-    const userId = profile.id;
-
-    setAuth({
-      id: userId,
-      email: userEmail,
-      username: userEmail.split("@")[0],
-      avatar: "",
-      collectionId: "",
-      collectionName: "",
-      autoSkip: false,
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
-    });
-    clearForm();
-    setTabValue("login");
   };
 
   const clearForm = () => {

@@ -80,11 +80,15 @@ const Layout = (props: Props) => {
         setIsFavorite(false);
         return;
       }
-      const res = await api.get("/favorites");
-      const match = (res.data as any[])?.find(
-        (fav) => fav.anime_id === animeId,
-      );
-      setIsFavorite(!!match);
+      try {
+        const res = await api.get("/favorites");
+        const match = (res.data as any[])?.find(
+          (fav) => fav.anime_id === animeId,
+        );
+        setIsFavorite(!!match);
+      } catch {
+        setIsFavorite(false);
+      }
     };
     loadFavorites();
   }, [animeId, auth]);
@@ -98,18 +102,25 @@ const Layout = (props: Props) => {
       return;
     }
     setFavoriteLoading(true);
-    if (isFavorite) {
-      await api.delete(`/favorites/${animeId}`);
-      setIsFavorite(false);
-      toast.success("Removed from favorites", {
-        style: { background: "green" },
+    try {
+      if (isFavorite) {
+        await api.delete(`/favorites/${animeId}`);
+        setIsFavorite(false);
+        toast.success("Removed from favorites", {
+          style: { background: "green" },
+        });
+      } else {
+        await api.post("/favorites", { anime_id: animeId });
+        setIsFavorite(true);
+        toast.success("Added to favorites", { style: { background: "green" } });
+      }
+    } catch {
+      toast.error("Unable to update favorites", {
+        style: { background: "red" },
       });
-    } else {
-      await api.post("/favorites", { anime_id: animeId });
-      setIsFavorite(true);
-      toast.success("Added to favorites", { style: { background: "green" } });
+    } finally {
+      setFavoriteLoading(false);
     }
-    setFavoriteLoading(false);
   };
 
   if (isLoading) return <Loading />;

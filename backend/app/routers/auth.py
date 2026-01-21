@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, Request, status
 
-from ..dependencies import get_current_user_optional, get_refresh_token_port, get_user_port
-from ..models.user import User
+from ..dependencies import get_refresh_token_port, get_user_port
 from ..schemas.auth import (
     LogoutRequest,
     RefreshTokenRequest,
@@ -67,8 +66,5 @@ async def refresh_token(
 async def logout(
     payload: LogoutRequest,
     token_port=Depends(get_refresh_token_port),
-    user: User | None = Depends(get_current_user_optional),
 ) -> None:
-    await logout_user(
-        token_port, payload.refresh_token, user_id=user.id if user else None
-    )
+    await logout_user(token_port, payload.refresh_token)

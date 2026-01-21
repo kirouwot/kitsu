@@ -1,4 +1,3 @@
-from datetime import datetime, timezone
 import uuid
 from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import asynccontextmanager
@@ -22,6 +21,7 @@ from .domain.ports.watch_progress import (
 )
 from .domain.ports.token import RefreshTokenPort
 from .domain.ports.user import UserPort
+from .auth import rbac
 from .models.user import User
 from .security.token_inspection import ExpiredTokenError, InvalidTokenError, validate_access_token
 
@@ -72,7 +72,6 @@ def get_watch_progress_port_factory() -> WatchProgressRepositoryFactory:
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: AsyncSession = Depends(get_db),
-    token_port: RefreshTokenPort = Depends(get_refresh_token_port),
 ):
     if credentials is None or credentials.scheme.lower() != "bearer":
         raise HTTPException(
@@ -112,30 +111,19 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
         )
 
-    session_token = await token_port.get_by_user_id(user_id)
-    if session_token is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Session not found"
-        )
-    if session_token.revoked:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Session revoked"
-        )
-    if session_token.expires_at <= datetime.now(timezone.utc):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Session has expired"
-        )
-
     return user
 
 
 async def get_current_user_optional(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: AsyncSession = Depends(get_db),
-    token_port: RefreshTokenPort = Depends(get_refresh_token_port),
 ) -> User | None:
     if credentials is None:
         return None
-    return await get_current_user(
-        credentials=credentials, db=db, token_port=token_port
-    )
+    return await get_current_user(credentials=credentials, db=db)
+
+
+async def get_current_role(
+    user: User | None = Depends(get_current_user_optional),
+) -> rbac.Role:
+    return rbac.resolve_role(user)
