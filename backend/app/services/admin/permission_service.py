@@ -154,7 +154,7 @@ class PermissionService:
         """Raise an exception if the user doesn't have the required permission.
         
         SECURITY: This is the enforcement point for permission checks.
-        All 403 errors are generated here.
+        All 403 errors are generated here and logged to audit.
         
         Args:
             user: The user to check permissions for
@@ -165,8 +165,21 @@ class PermissionService:
             HTTPException: 403 Forbidden if permission is denied
         """
         if not await self.has_permission(user, permission_name, actor_type):
-            # SECURITY: Permission denied should be logged to audit
-            # The calling code should use AuditService.log_permission_denied()
+            # SECURITY: Log permission denial to audit
+            # Import here to avoid circular dependency
+            from ...services.audit.audit_service import AuditService
+            audit_service = AuditService(self.session)
+            try:
+                await audit_service.log_permission_denied(
+                    permission=permission_name,
+                    actor=user,
+                    actor_type=actor_type
+                )
+            except Exception:
+                # Don't fail the permission check if audit logging fails
+                # (logging failures shouldn't bypass security)
+                pass
+            
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Permission denied: {permission_name} required"

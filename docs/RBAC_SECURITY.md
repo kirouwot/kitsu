@@ -245,7 +245,8 @@ When adding new features:
 - [ ] No inline role checks (`if role == "admin"`)
 - [ ] No wildcard permissions
 - [ ] Actor type validated for all audit logs
-- [ ] Permission denied events logged
+- [ ] Permission denied events logged (automatically via PermissionService.require_permission)
+- [ ] Privilege escalation attempts logged (if applicable)
 - [ ] New permissions added to `rbac_contract.py`
 - [ ] Tests verify hard invariants
 

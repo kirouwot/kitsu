@@ -257,9 +257,12 @@ async def seed_admin_core():
             if role_name in rbac_contract.SYSTEM_ROLES:
                 admin_perms = [p for p in permission_names if p in rbac_contract.ADMIN_PERMISSIONS]
                 if admin_perms:
-                    print(f"  ERROR: System role '{role_name}' has FORBIDDEN admin permissions: {admin_perms}")
-                    print("  SECURITY-01 VIOLATION: Parser ≠ Admin invariant violated!")
-                    continue
+                    error_msg = (
+                        f"SECURITY-01 VIOLATION: System role '{role_name}' has FORBIDDEN admin permissions: {admin_perms}\n"
+                        f"Parser ≠ Admin invariant violated! Seeding aborted."
+                    )
+                    print(f"  ERROR: {error_msg}")
+                    raise RuntimeError(error_msg)
             
             for perm_name in permission_names:
                 perm_id = permission_map.get(perm_name)
