@@ -11,13 +11,15 @@ import Container from "./container";
 import { Button } from "./ui/button";
 
 import React from "react";
-import { ArrowLeft, ArrowRight, Captions, Mic } from "lucide-react";
+import { Info, Play, Heart, Star, Captions, Mic } from "lucide-react";
 
 import { ROUTES } from "@/constants/routes";
 import { ButtonLink } from "./common/button-link";
 import { SpotlightAnime } from "@/types/anime";
 import { Badge } from "./ui/badge";
 import { HERO_SPOTLIGHT_FALLBACK } from "@/constants/fallbacks";
+import { motion } from "framer-motion";
+import { cn } from "@/lib/utils";
 
 type IHeroSectionProps = {
   spotlightAnime: SpotlightAnime[];
@@ -26,147 +28,164 @@ type IHeroSectionProps = {
 
 const HeroSection = (props: IHeroSectionProps) => {
   const [api, setApi] = React.useState<CarouselApi>();
+  const [current, setCurrent] = React.useState(0);
 
   const hasSpotlight = Array.isArray(props.spotlightAnime) && props.spotlightAnime.length > 0;
   const shouldUseFallback = props.isDataLoading || !hasSpotlight;
   const spotlightList = shouldUseFallback ? HERO_SPOTLIGHT_FALLBACK : props.spotlightAnime;
+  
+  React.useEffect(() => {
+    if (!api) return;
+
+    setCurrent(api.selectedScrollSnap());
+
+    api.on("select", () => {
+      setCurrent(api.selectedScrollSnap());
+    });
+  }, [api]);
+
   if (!spotlightList.length) return <LoadingSkeleton />;
 
   return (
-    <div className="h-[80vh] w-full relative">
-      <Carousel className="w-full" setApi={setApi} opts={{}}>
-        <CarouselContent className="">
+    <div className="relative h-[85vh] w-full overflow-hidden">
+      <Carousel className="w-full h-full" setApi={setApi} opts={{}}>
+        <CarouselContent className="h-full">
           {spotlightList.map((anime, index) => (
-            <CarouselItem key={index}>
+            <CarouselItem key={index} className="h-full">
               <HeroCarouselItem anime={anime} />
             </CarouselItem>
           ))}
         </CarouselContent>
       </Carousel>
-      <div className="absolute hidden md:flex items-center gap-5 right-10 3xl:bottom-10 bottom-24 z-50 isolate">
-        <Button
-          onClick={() => {
-            api?.scrollPrev();
-          }}
-          className="rounded-full bg-transparent border border-white h-10 w-10 hover:bg-slate-500"
-        >
-          <ArrowLeft className="text-white shrink-0" />
-        </Button>
-        <Button
-          onClick={() => api?.scrollNext()}
-          className="rounded-full bg-transparent border border-white h-10 w-10 hover:bg-slate-500"
-        >
-          <ArrowRight className="text-white shrink-0" />
-        </Button>
+
+      {/* Навигация карусели */}
+      <div className="absolute bottom-8 right-8 flex gap-3 z-50">
+        {spotlightList.map((_, i) => (
+          <button
+            key={i}
+            onClick={() => api?.scrollTo(i)}
+            className={cn(
+              "h-1 rounded-full transition-all",
+              i === current ? "w-12 bg-primary" : "w-8 bg-white/30 hover:bg-white/50"
+            )}
+          />
+        ))}
       </div>
     </div>
   );
 };
 
 const HeroCarouselItem = ({ anime }: { anime: SpotlightAnime }) => {
-  // const [isHovered, setIsHovered] = useState(false);
-
-  // const hoverTimeoutRef = React.useRef<NodeJS.Timeout | null>(null); // Use ref to store the timeout ID
-
-  // const handleMouseEnter = () => {
-  //   hoverTimeoutRef.current = setTimeout(() => {
-  //     setIsHovered(true);
-  //   }, 1500);
-  // };
-
-  // const handleMouseLeave = () => {
-  //   if (hoverTimeoutRef.current) {
-  //     clearTimeout(hoverTimeoutRef.current); // Clear the timeout when mouse leaves
-  //   }
-  //   setIsHovered(false);
-  // };
-
   return (
-    <div
-      className={`w-full bg-cover bg-no-repeat bg-center h-[80vh] relative`}
-      style={{ backgroundImage: `url(${anime?.poster})` }}
-      // onMouseEnter={handleMouseEnter}
-      // onMouseLeave={handleMouseLeave}
-    >
-      {/* {isHovered && (
-        <div className="absolute inset-0 z-0">
-          <iframe
-            className="w-full h-full object-cover"
-            src={`https://www.youtube.com/embed/${anime?.trailer.id}?autoplay=1&mute=0&controls=0&modestbranding=1`}
-            title="YouTube video player"
-            allow="autoplay; encrypted-media"
-            allowFullScreen
-          ></iframe>
-        </div>
-      )} */}
+    <div className="relative h-full w-full">
+      {/* BACKGROUND с эффектами */}
+      <div
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: `url(${anime?.poster})` }}
+      />
 
-      {/* Gradient Overlay */}
-      <div className="absolute h-full w-full inset-0 m-auto bg-gradient-to-r from-slate-900 to-transparent z-10"></div>
-      <div className="absolute h-full w-full inset-0 m-auto bg-gradient-to-t from-slate-900 to-transparent z-10"></div>
+      {/* Blur overlay для глубины */}
+      <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-r from-background via-transparent to-transparent" />
 
-      {/* Content Section (remains outside the hover area) */}
-      <div className="w-full h-[calc(100%-5.25rem)]  relative z-20">
-        <Container className="w-full h-full flex flex-col justify-end md:justify-center pb-10">
-          <div className="space-y-2 lg:w-[40vw]">
-            {/* Title and description moved inside the hover area */}
-            <h1 className="text-4xl font-black">{anime?.name}</h1>
-
-            <div className="flex flex-row items-center space-x-2 ">
-              {anime.episodes.sub && (
-                <Badge className="bg-red-200 flex flex-row items-center space-x-0.5">
-                  <Captions size={"16"} />
-                  <span>{anime.episodes.sub}</span>
-                </Badge>
-              )}
-              {anime.episodes.dub && (
-                <Badge className="bg-green-200 flex flex-row items-center space-x-0.5">
-                  <Mic size={"16"} />
-                  <span>{anime.episodes.dub}</span>
-                </Badge>
-              )}
-            </div>
-
-            <p className="text-lg line-clamp-4">
-              {anime?.description}
-            </p>
-            <div className="flex items-center gap-5 !mt-5">
-              <ButtonLink
-                href={`${ROUTES.ANIME_DETAILS}/${anime.id}`}
-                className="h-10 text-md bg-[#e9376b] text-white hover:bg-[#e9376b]"
-              >
-                Learn More
-              </ButtonLink>
-              {/* <ButtonLink href={`${ROUTES.WATCH}?anime=${anime.id}&episode=${}`} className="h-10 text-md" variant={"secondary"}>
-                Watch
-              </ButtonLink> */}
-            </div>
+      {/* CONTENT */}
+      <Container className="relative h-full flex items-center">
+        <motion.div
+          initial={{ opacity: 0, x: -50 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.5 }}
+          className="max-w-2xl space-y-6"
+        >
+          {/* Рейтинг + Тип + Эпизоды */}
+          <div className="flex items-center gap-3 text-sm flex-wrap">
+            {anime.rank && (
+              <div className="flex items-center gap-2 bg-yellow-500/20 px-3 py-1 rounded-full backdrop-blur-sm">
+                <Star className="w-4 h-4 fill-yellow-500 text-yellow-500" />
+                <span className="font-bold">{anime.rank}</span>
+              </div>
+            )}
+            {anime.episodes.sub && (
+              <Badge className="bg-blue-500/90 backdrop-blur-sm flex items-center gap-1">
+                <Captions className="w-3 h-3" />
+                <span>{anime.episodes.sub} эп</span>
+              </Badge>
+            )}
+            {anime.episodes.dub && (
+              <Badge className="bg-green-500/90 backdrop-blur-sm flex items-center gap-1">
+                <Mic className="w-3 h-3" />
+                <span>{anime.episodes.dub} эп</span>
+              </Badge>
+            )}
+            {anime.type && <Badge variant="secondary">{anime.type}</Badge>}
           </div>
-        </Container>
-      </div>
+
+          {/* Название БОЛЬШОЕ */}
+          <h1 className="text-4xl md:text-6xl font-black tracking-tight leading-tight">
+            {anime?.name}
+          </h1>
+
+          {/* Описание с градиентом обрезки */}
+          <p className="text-base md:text-lg text-muted-foreground line-clamp-3">
+            {anime?.description}
+          </p>
+
+          {/* КНОПКИ СОВРЕМЕННЫЕ */}
+          <div className="flex items-center gap-4 pt-4 flex-wrap">
+            <ButtonLink
+              href={`${ROUTES.ANIME_DETAILS}/${anime.id}`}
+              className="gap-2 bg-primary hover:bg-primary/90 h-12 md:h-14 px-6 md:px-8 text-base md:text-lg rounded-xl"
+            >
+              <Info className="w-5 h-5" />
+              Подробнее
+            </ButtonLink>
+            <Button
+              size="lg"
+              variant="outline"
+              className="gap-2 h-12 md:h-14 px-6 md:px-8 text-base md:text-lg rounded-xl backdrop-blur-sm"
+            >
+              <Play className="w-5 h-5" fill="currentColor" />
+              Смотреть
+            </Button>
+            <Button
+              size="lg"
+              variant="ghost"
+              className="h-12 md:h-14 w-12 md:w-14 rounded-full hover:bg-primary/20"
+            >
+              <Heart className="w-6 h-6" />
+            </Button>
+          </div>
+        </motion.div>
+      </Container>
     </div>
   );
 };
 
 const LoadingSkeleton = () => {
   return (
-    <div className="h-[80vh] w-full relative">
-      <div className="w-full h-[calc(100%-5.25rem)] mt-[5.25rem] relative z-20">
-        <Container className="w-full h-full flex flex-col justify-end md:justify-center pb-10">
-          <div className="space-y-2 lg:w-[40vw]">
-            <div className="h-16 animate-pulse bg-slate-700 w-[75%]"></div>
-            <div className="h-40 animate-pulse w-full bg-slate-700"></div>
-            <div className="flex items-center gap-5">
-              <span className="h-10 w-[7.5rem] animate-pulse bg-slate-700"></span>
-              <span className="h-10 w-[7.5rem] animate-pulse bg-slate-700"></span>
+    <div className="h-[85vh] w-full relative">
+      <div className="w-full h-full relative z-20">
+        <Container className="w-full h-full flex items-center pb-10">
+          <div className="space-y-6 max-w-2xl">
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-24 animate-pulse bg-slate-700 rounded-full"></div>
+              <div className="h-8 w-20 animate-pulse bg-slate-700 rounded-full"></div>
+            </div>
+            <div className="h-16 md:h-20 animate-pulse bg-slate-700 w-[85%] rounded-lg"></div>
+            <div className="h-24 animate-pulse w-full bg-slate-700 rounded-lg"></div>
+            <div className="flex items-center gap-4">
+              <span className="h-14 w-40 animate-pulse bg-slate-700 rounded-xl"></span>
+              <span className="h-14 w-32 animate-pulse bg-slate-700 rounded-xl"></span>
             </div>
           </div>
         </Container>
       </div>
-      <div className="absolute hidden md:flex items-center gap-5 right-10 bottom-32 z-50 isolate">
-        <span className="h-10 w-10 rounded-full animate-pulse bg-slate-700"></span>
-        <span className="h-10 w-10 rounded-full animate-pulse bg-slate-700"></span>
+      <div className="absolute bottom-8 right-8 flex gap-3 z-50">
+        <span className="h-1 w-12 rounded-full animate-pulse bg-slate-700"></span>
+        <span className="h-1 w-8 rounded-full animate-pulse bg-slate-700"></span>
+        <span className="h-1 w-8 rounded-full animate-pulse bg-slate-700"></span>
       </div>
     </div>
   );
 };
+
 export default HeroSection;

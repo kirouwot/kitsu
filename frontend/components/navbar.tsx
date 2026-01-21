@@ -18,20 +18,21 @@ import { Sheet, SheetClose, SheetContent, SheetTrigger } from "./ui/sheet";
 import LoginPopoverButton from "./login-popover-button";
 import { useAuthSelector } from "@/store/auth-store";
 import NavbarAvatar from "./navbar-avatar";
+import { ThemeToggle } from "./theme-toggle";
 
 const menuItems: Array<{ title: string; href?: string }> = [
+  {
+    title: "Главная",
+    href: ROUTES.HOME,
+  },
   // {
-  //   title: "Home",
-  //   href: ROUTES.HOME,
+  //   title: "Каталог",
   // },
   // {
-  //   title: "Catalog",
+  //   title: "Расписание",
   // },
   // {
-  //   title: "News",
-  // },
-  // {
-  //   title: "Collection",
+  //   title: "Случайное",
   // },
 ];
 
@@ -39,58 +40,71 @@ const NavBar = () => {
   const auth = useAuthSelector((state) => state.auth);
   const clearAuth = useAuthSelector((state) => state.clearAuth);
   const { y } = useScrollPosition();
-  const isHeaderFixed = true;
   const isHeaderSticky = y > 0;
 
   return (
-    <div
+    <nav
       className={cn([
-        "h-fit w-full",
-        "sticky top-0 z-[100] duration-300",
-        isHeaderFixed ? "fixed bg-gradient-to-b from-slate-700" : "",
+        "fixed top-0 w-full z-[100] transition-all duration-300",
         isHeaderSticky
-          ? "bg-clip-padding backdrop-filter backdrop-blur-md bg-opacity-10 bg-slate-900"
-          : "",
+          ? "backdrop-blur-xl bg-black/80 dark:bg-black/80"
+          : "bg-transparent",
       ])}
     >
-      <Container className="flex items-center justify-between py-2 gap-20 ">
-        <Link
-          href={ROUTES.HOME}
-          className="flex items-center gap-1 cursor-pointer"
-        >
-          <Image
-            src="/icon.png"
-            alt="logo"
-            width={70}
-            height={70}
-            priority
-            suppressHydrationWarning
-          />
-          <h1
-            className={cn([
-              nightTokyo.className,
-              "text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-gray-200 to-pink-600 tracking-widest",
-            ])}
+      <Container className="flex items-center justify-between h-16">
+        {/* ЛЕВАЯ ЧАСТЬ: Лого + Меню */}
+        <div className="flex items-center gap-8">
+          <Link
+            href={ROUTES.HOME}
+            className="flex items-center gap-2 cursor-pointer"
           >
-            Kitsunee
-          </h1>
-        </Link>
-        <div className="hidden lg:flex items-center gap-10 ml-20">
-          {menuItems.map((menu, idx) => (
-            <Link href={menu.href || "#"} key={idx}>
-              {menu.title}
-            </Link>
-          ))}
+            <Image
+              src="/icon.png"
+              alt="logo"
+              width={40}
+              height={40}
+              priority
+              suppressHydrationWarning
+            />
+            <h1
+              className={cn([
+                nightTokyo.className,
+                "text-xl font-bold gradient-text tracking-wider",
+              ])}
+            >
+              Kitsune
+            </h1>
+          </Link>
+          
+          {/* Desktop Menu */}
+          <div className="hidden lg:flex items-center gap-6">
+            {menuItems.map((menu, idx) => (
+              <Link 
+                href={menu.href || "#"} 
+                key={idx}
+                className="text-sm font-medium transition-colors hover:text-primary relative group"
+              >
+                {menu.title}
+                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-primary transition-all group-hover:w-full"></span>
+              </Link>
+            ))}
+          </div>
         </div>
-        <div className="w-1/3 hidden lg:flex items-center gap-5">
+
+        {/* ПРАВАЯ ЧАСТЬ: Поиск + Тема + Профиль */}
+        <div className="hidden lg:flex items-center gap-4">
           <SearchBar />
+          <ThemeToggle />
           {auth ? (
             <NavbarAvatar auth={auth} clearAuth={clearAuth} />
           ) : (
             <LoginPopoverButton />
           )}
         </div>
-        <div className="lg:hidden flex items-center gap-5">
+
+        {/* Mobile Menu */}
+        <div className="lg:hidden flex items-center gap-3">
+          <ThemeToggle />
           <MobileMenuSheet trigger={<MenuIcon suppressHydrationWarning />} />
           {auth ? (
             <NavbarAvatar auth={auth} clearAuth={clearAuth} />
@@ -99,7 +113,7 @@ const NavBar = () => {
           )}
         </div>
       </Container>
-    </div>
+    </nav>
   );
 };
 
@@ -124,6 +138,7 @@ const MobileMenuSheet = ({ trigger }: { trigger: ReactNode }) => {
                 href={menu.href || "#"}
                 key={idx}
                 onClick={() => setOpen(false)}
+                className="text-lg font-medium hover:text-primary transition-colors"
               >
                 {menu.title}
               </Link>

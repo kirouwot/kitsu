@@ -5,9 +5,10 @@ import Image from "next/image";
 import { cn, formatSecondsToMMSS } from "@/lib/utils";
 import { Badge } from "./ui/badge";
 import { buttonVariants } from "./ui/button";
-import { Captions, Mic } from "lucide-react";
+import { Captions, Mic, Play, Star } from "lucide-react";
 import { WatchHistory } from "@/hooks/use-get-bookmark";
 import { Progress } from "./ui/progress";
+import { motion } from "framer-motion";
 
 type Props = {
   className?: string;
@@ -51,33 +52,68 @@ const AnimeCard = ({
   const continueWatching = props.continueWatching;
 
   return (
-    <Link href={props.href as string}>
-      <div
-        className={cn([
-          "rounded-xl overflow-hidden relative cursor-pointer hover:scale-105 duration-300",
-          variant === "sm" &&
-            "h-[12rem] min-[320px]:h-[16.625rem] sm:h-[18rem] max-w-[12.625rem] md:min-w-[12rem]",
-          ,
-          variant === "lg" &&
-            "max-w-[12.625rem] md:max-w-[18.75rem] h-auto md:h-[25rem] shrink-0 lg:w-[18.75rem]",
-          props.className,
-        ])}
-      >
-        <Image
-          src={props.poster}
-          alt="image"
-          height={100}
-          width={100}
-          className="w-full h-full object-cover"
-          unoptimized
-        />
-        {displayDetails && (
+    <motion.div
+      whileHover={{ y: -8, scale: 1.02 }}
+      transition={{ type: "spring", stiffness: 300, damping: 20 }}
+      className="group relative"
+    >
+      <Link href={props.href as string}>
+        <div
+          className={cn([
+            "rounded-2xl overflow-hidden relative cursor-pointer",
+            variant === "sm" &&
+              "h-[12rem] min-[320px]:h-[16.625rem] sm:h-[18rem] max-w-[12.625rem] md:min-w-[12rem]",
+            variant === "lg" &&
+              "max-w-[12.625rem] md:max-w-[18.75rem] h-auto md:h-[25rem] shrink-0 lg:w-[18.75rem]",
+            props.className,
+          ])}
+        >
+          <Image
+            src={props.poster}
+            alt={props.title}
+            height={100}
+            width={100}
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+            unoptimized
+          />
+
+          {/* ГРАДИЕНТ снизу */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+          {displayDetails && (
             <>
-              <div className="absolute inset-0 m-auto h-full w-full bg-gradient-to-t from-accent to-transparent"></div>
-              <div className="absolute bottom-0 flex flex-col gap-1 px-4 pb-3">
-                <h5 className="line-clamp-1">{props.title}</h5>
+              {/* СТАТУСЫ вверху */}
+              {props.episodeCard && (
+                <div className="absolute top-3 left-3 flex gap-2 z-10">
+                  {props.sub && (
+                    <Badge className="bg-blue-500/90 backdrop-blur-sm flex items-center gap-1">
+                      <Captions className="w-3 h-3" />
+                      <span>{props.sub}</span>
+                    </Badge>
+                  )}
+                  {props.dub && (
+                    <Badge className="bg-green-500/90 backdrop-blur-sm flex items-center gap-1">
+                      <Mic className="w-3 h-3" />
+                      <span>{props.dub}</span>
+                    </Badge>
+                  )}
+                </div>
+              )}
+
+              {/* КНОПКА PLAY при hover */}
+              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10">
+                <div className="w-16 h-16 rounded-full bg-primary/90 backdrop-blur-sm flex items-center justify-center">
+                  <Play className="w-8 h-8 fill-white text-white" />
+                </div>
+              </div>
+
+              {/* INFO внизу */}
+              <div className="absolute bottom-0 left-0 right-0 p-4">
+                <div className="absolute inset-0 bg-gradient-to-t from-black to-transparent -z-10"></div>
+                
                 {continueWatching ? (
-                  <div className="flex flex-col gap-1">
+                  <div className="flex flex-col gap-1 relative z-10">
+                    <h5 className="line-clamp-1 font-semibold text-white">{props.title}</h5>
                     <p className="text-xs text-gray-300">
                       Серия {continueWatching.episode}
                     </p>
@@ -99,42 +135,42 @@ const AnimeCard = ({
                   </div>
                 ) : (
                   <>
+                    <h5 className="line-clamp-1 font-semibold text-white relative z-10">{props.title}</h5>
                     {props.watchDetail && (
-                      <>
+                      <div className="relative z-10">
                         <p className="text-xs text-gray-400">
                           Episode {props.watchDetail.episodeNumber} -
                           {formatSecondsToMMSS(props.watchDetail.current)} /
                           {formatSecondsToMMSS(props.watchDetail.timestamp)}
                         </p>
                         <Progress value={percentage} />
-                      </>
-                    )}
-                    {props.episodeCard ? (
-                      <div className="flex flex-row items-center space-x-2 ">
-                        {props.sub && (
-                          <Badge className="bg-red-200 flex flex-row items-center space-x-0.5">
-                            <Captions size={"16"} />
-                            <span>{props.sub}</span>
-                          </Badge>
-                        )}
-                        {props.dub && (
-                          <Badge className="bg-green-200 flex flex-row items-center space-x-0.5">
-                            <Mic size={"16"} />
-                            <span>{props.dub}</span>
-                          </Badge>
-                        )}
-                        <p className="text-sm text-gray-400">{props.subTitle}</p>
                       </div>
-                    ) : (
-                      <span>{props.subTitle}</span>
+                    )}
+                    {!props.watchDetail && props.subTitle && (
+                      <p className="text-sm text-gray-400 relative z-10">{props.subTitle}</p>
                     )}
                   </>
                 )}
               </div>
             </>
           )}
-      </div>
-    </Link>
+        </div>
+
+        {/* НАЗВАНИЕ под карточкой (если есть continueWatching, дублируется выше) */}
+        {displayDetails && !continueWatching && (
+          <div className="mt-3 space-y-1">
+            <h3 className="font-semibold text-sm line-clamp-2 group-hover:text-primary transition-colors">
+              {props.title}
+            </h3>
+            {props.subTitle && (
+              <p className="text-xs text-muted-foreground">
+                {props.subTitle}
+              </p>
+            )}
+          </div>
+        )}
+      </Link>
+    </motion.div>
   );
 };
 
