@@ -1,7 +1,8 @@
 import hashlib
 import time
-from collections import defaultdict
-from typing import DefaultDict, List
+from redis import RedisError
+
+from ..infra.redis import get_redis_client
 
 AUTH_RATE_LIMIT_MAX_ATTEMPTS = 5
 AUTH_RATE_LIMIT_WINDOW_SECONDS = 60
@@ -18,33 +19,54 @@ class SoftRateLimiter:
     def __init__(self, max_attempts: int, window_seconds: int) -> None:
         self.max_attempts = max_attempts
         self.window_seconds = window_seconds
-        self._attempts: DefaultDict[str, List[float]] = defaultdict(list)
+        self._redis = get_redis_client()
 
-    def _prune(self, key: str, now: float) -> List[float]:
-        cutoff = now - self.window_seconds
-        attempts = [ts for ts in self._attempts.get(key, []) if ts >= cutoff]
-        if attempts:
-            self._attempts[key] = attempts
-        else:
-            self._attempts.pop(key, None)
-        return attempts
+    def _make_redis_key(self, key: str) -> str:
+        """Prefix key for Redis namespace."""
+        return f"rate_limit:auth:{key}"
 
     def is_limited(self, key: str, now: float | None = None) -> bool:
-        current = now or time.time()
-        attempts = self._prune(key, current)
-        return len(attempts) >= self.max_attempts
+        redis_key = self._make_redis_key(key)
+        try:
+            count = self._redis.get(redis_key)
+            if count is None:
+                return False
+            return int(count) >= self.max_attempts
+        except (RedisError, ValueError):
+            # Fail closed: if Redis is unavailable, block the request
+            return True
 
     def record_failure(self, key: str, now: float | None = None) -> None:
-        current = now or time.time()
-        attempts = self._prune(key, current)
-        attempts.append(current)
-        self._attempts[key] = attempts
+        redis_key = self._make_redis_key(key)
+        try:
+            count = self._redis.incr(redis_key)
+            # Set TTL only on first increment
+            if count == 1:
+                self._redis.expire(redis_key, self.window_seconds)
+        except RedisError:
+            # Fail closed: if we can't record, assume limit exceeded
+            pass
 
     def reset(self, key: str) -> None:
-        self._attempts.pop(key, None)
+        redis_key = self._make_redis_key(key)
+        try:
+            self._redis.delete(redis_key)
+        except RedisError:
+            pass
 
     def clear(self) -> None:
-        self._attempts.clear()
+        """Clear all rate limit keys. For testing only."""
+        try:
+            # Scan and delete all rate limit keys
+            cursor = 0
+            while True:
+                cursor, keys = self._redis.scan(cursor, match="rate_limit:auth:*", count=100)
+                if keys:
+                    self._redis.delete(*keys)
+                if cursor == 0:
+                    break
+        except RedisError:
+            pass
 
 
 def _make_key(scope: str, identifier: str, client_ip: str | None) -> str:
