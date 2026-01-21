@@ -696,17 +696,39 @@ Before considering security layer complete, verify:
 
 ---
 
-## Next Steps (REFACTOR-03)
+## REFACTOR-03 Status
 
-The security layer is now **FINAL** and **COMPLETE**. No further RBAC changes planned.
+**REFACTOR-03 (Database Audit Template) - PLANNING PHASE COMPLETE**
 
-**REFACTOR-03 will focus on:**
-1. Database consistency checks
-2. Orphaned data cleanup
-3. Performance optimization
-4. Data integrity constraints
+The security layer is now **FINAL** and **COMPLETE**. No further RBAC code changes planned.
 
-**Security is OFF THE TABLE** - contract is locked and enforced.
+**REFACTOR-03 SCOPE:**
+- ✅ Created audit template based on rbac_contract.py analysis
+- ✅ Documented expected database state from contract
+- ✅ Generated verification queries for future use
+- ✅ Created cleanup plan template (NON-EXECUTABLE)
+- ❌ Did NOT connect to database
+- ❌ Did NOT audit actual database state
+- ❌ Did NOT execute any queries
+
+**REFACTOR-03 DELIVERABLES:**
+1. `REFACTOR-03_DB_AUDIT.md` - Audit template with verification queries
+2. `REFACTOR-03_CLEANUP_PLAN.sql` - Non-executable cleanup plan template
+
+**DATABASE STATE:** Unknown (not audited)
+
+**NEXT PHASE (REFACTOR-04) will include:**
+1. Actual database connection and audit
+2. Real findings documentation
+3. Approval-based cleanup execution
+4. Step-by-step verification
+5. Application testing
+
+**Security Contract Status:** ✅ LOCKED
+- Security layer is FINAL
+- rbac_contract.py is the ONLY source of truth
+- All database changes (REFACTOR-04) must align with contract
+- NO changes to RBAC code permitted
 
 ---
 
@@ -728,15 +750,21 @@ The RBAC security system is now:
 - Seed: `backend/scripts/seed_admin_core.py` (DB initialization)
 - Check: `backend/scripts/check_legacy_permissions.sql` (DB verification)
 
+**REFACTOR-03 Audit Templates:**
+- Audit Framework: `REFACTOR-03_DB_AUDIT.md` (template for database audit)
+- Cleanup Plan: `REFACTOR-03_CLEANUP_PLAN.sql` (non-executable template)
+
 **Prohibited Actions:**
 - ❌ Adding wildcard permissions
 - ❌ Creating alternative auth mechanisms
 - ❌ Bypassing PermissionService
 - ❌ Modifying rbac_contract without security review
 - ❌ Reintroducing legacy patterns
+- ❌ Executing REFACTOR-03 templates without REFACTOR-04 approval
 
 ---
 
 **Signed off by:** Copilot Agent  
 **Verified:** All legacy code deleted, no legacy imports, all tests updated  
-**Status:** ✅ REFACTOR-02.1 COMPLETE - SECURITY LAYER FINAL
+**Security Status:** ✅ REFACTOR-02.1 COMPLETE - SECURITY LAYER FINAL  
+**Audit Status:** ✅ REFACTOR-03 COMPLETE - TEMPLATES READY (Database not audited)

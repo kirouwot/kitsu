@@ -1,23 +1,82 @@
+-- ╔════════════════════════════════════════════════════════════════════════════╗
+-- ║                                                                            ║
+-- ║   ⚠️  ⚠️  ⚠️   DO NOT EXECUTE THIS FILE   ⚠️  ⚠️  ⚠️                      ║
+-- ║                                                                            ║
+-- ║   THIS IS A NON-EXECUTABLE PLANNING TEMPLATE                               ║
+-- ║   FOR REFACTOR-04 (FUTURE CONTROLLED CLEANUP PHASE)                        ║
+-- ║                                                                            ║
+-- ║   REFACTOR-03 = PLANNING ONLY (no database access)                         ║
+-- ║   REFACTOR-04 = CONTROLLED EXECUTION (with manual approval)                ║
+-- ║                                                                            ║
+-- ╚════════════════════════════════════════════════════════════════════════════╝
+
 -- ============================================================================
--- REFACTOR-03: Database Cleanup Plan (Template)
+-- REFACTOR-03: Database Cleanup Plan (TEMPLATE ONLY - NON-EXECUTABLE)
 -- Generated: 2026-01-21T06:59:20.265726Z
--- Status: DRY-RUN TEMPLATE (DO NOT EXECUTE WITHOUT REVIEW)
+-- Status: PLANNING TEMPLATE (NOT FOR EXECUTION)
 -- ============================================================================
 
--- THIS SCRIPT IS A TEMPLATE FOR REVIEW
--- Modify queries based on actual database findings
--- Each statement should be reviewed, approved, and executed individually
+-- ⛔ CRITICAL WARNING ⛔
+-- This file contains NO executable SQL statements by design.
+-- All potentially dangerous operations are COMMENTED OUT.
+-- This is a TEMPLATE for REFACTOR-04 planning, NOT a runnable script.
 
 -- ============================================================================
--- PRE-EXECUTION CHECKLIST
+-- WHAT THIS FILE IS
 -- ============================================================================
+-- ✓ A planning template for future database cleanup
+-- ✓ Example queries to guide REFACTOR-04 execution
+-- ✓ Risk assessment for potential cleanup operations
+-- ✓ Reference documentation for manual approval process
+
+-- ============================================================================
+-- WHAT THIS FILE IS NOT
+-- ============================================================================
+-- ✗ NOT an executable script
+-- ✗ NOT ready to run against a database
+-- ✗ NOT based on actual database audit (database was not accessed)
+-- ✗ NOT approved for execution (requires REFACTOR-04 approval workflow)
+
+-- ============================================================================
+-- HOW TO USE THIS TEMPLATE (IN REFACTOR-04)
+-- ============================================================================
+-- 1. First, audit the actual database using queries from REFACTOR-03_DB_AUDIT.md
+-- 2. Document real findings (not hypothetical ones)
+-- 3. Adapt queries in this file based on actual findings
+-- 4. Get approval for each step from security team
+-- 5. Create database backup before ANY changes
+-- 6. Execute ONE step at a time with verification
+-- 7. Never uncomment multiple DELETE/UPDATE statements at once
+-- 8. Always use transactions with tested rollback
+
+-- ============================================================================
+-- PRE-EXECUTION CHECKLIST (FOR REFACTOR-04 PHASE)
+-- ============================================================================
+-- This checklist is for REFACTOR-04, not REFACTOR-03
+-- [ ] REFACTOR-04 task officially started
+-- [ ] Actual database audit completed (real findings documented)
+-- [ ] This template adapted based on actual findings
 -- [ ] Database backup created: pg_dump kitsu > backup_$(date +%Y%m%d_%H%M%S).sql
--- [ ] Audit report reviewed and findings documented
+-- [ ] Backup tested and verified
 -- [ ] Cleanup plan approved by security team
--- [ ] Test environment validated first
--- [ ] Rollback procedure tested
+-- [ ] Test environment validated with identical procedure
+-- [ ] Rollback procedure tested in test environment
+-- [ ] Approval obtained for each individual step
+-- [ ] Downtime window scheduled (if required)
+-- [ ] Rollback team on standby
 
-BEGIN;
+-- ============================================================================
+-- FILE STRUCTURE NOTE
+-- ============================================================================
+-- All SQL statements below are COMMENTED OUT
+-- This ensures the file cannot be executed accidentally
+-- In REFACTOR-04, specific statements will be:
+--   1. Reviewed individually
+--   2. Adapted to actual findings
+--   3. Approved separately
+--   4. Uncommented ONE AT A TIME
+--   5. Executed with verification
+--   6. Rolled back if issues detected
 
 -- ============================================================================
 -- STEP 1: DELETE WILDCARD PERMISSIONS (CRITICAL)
@@ -284,24 +343,69 @@ BEGIN;
 -- Expected: 0 rows
 
 -- ============================================================================
--- ROLLBACK STRATEGY
+-- ROLLBACK STRATEGY (FOR REFACTOR-04 EXECUTION)
 -- ============================================================================
+-- ⚠️  These rollback instructions are for REFACTOR-04, not REFACTOR-03
+-- REFACTOR-03 did not execute anything, so there is nothing to rollback
+
+-- When executing in REFACTOR-04:
 -- To rollback all changes:
-ROLLBACK;
+-- ROLLBACK;
 
 -- To commit changes (ONLY after thorough review and testing):
 -- COMMIT;
 
--- Recommended execution process:
+-- Recommended REFACTOR-04 execution process:
 -- 1. Create backup: pg_dump -U kitsu -d kitsu > backup_$(date +%Y%m%d_%H%M%S).sql
--- 2. Start transaction: BEGIN;
--- 3. Execute one step at a time
--- 4. Verify results after each step
--- 5. If something wrong: ROLLBACK;
--- 6. If all good: COMMIT;
--- 7. Test application thoroughly
--- 8. Keep backup for 30 days
+-- 2. Test backup restore procedure
+-- 3. Start transaction: BEGIN;
+-- 4. Uncomment and execute ONE step at a time
+-- 5. Verify results after each step using SELECT queries
+-- 6. If something wrong: ROLLBACK; and restore from backup
+-- 7. If all good: COMMIT; (only after all steps verified)
+-- 8. Test application thoroughly
+-- 9. Monitor for 24-48 hours
+-- 10. Keep backup for 30 days
 
 -- ============================================================================
--- END OF CLEANUP PLAN
+-- PHASE BOUNDARY: REFACTOR-03 vs REFACTOR-04
+-- ============================================================================
+
+-- REFACTOR-03 (THIS FILE) = PLANNING TEMPLATE
+-- ✓ Template created
+-- ✓ Example queries provided
+-- ✓ Risk assessment documented
+-- ✗ NO database accessed
+-- ✗ NO queries executed
+-- ✗ NO changes made
+
+-- REFACTOR-04 (NEXT PHASE) = CONTROLLED EXECUTION
+-- 🔜 Database connection established
+-- 🔜 Actual audit performed
+-- 🔜 Findings documented
+-- 🔜 This template adapted to real findings
+-- 🔜 Manual approval obtained
+-- 🔜 Cleanup executed step-by-step
+-- 🔜 Results verified
+-- 🔜 Application tested
+
+-- ============================================================================
+-- END OF NON-EXECUTABLE TEMPLATE
+-- ============================================================================
+-- 
+-- ⚠️  FINAL REMINDER ⚠️
+-- 
+-- This file is a PLANNING TEMPLATE created without database access.
+-- It is NOT ready for execution and contains NO executable SQL.
+-- All potentially dangerous operations are commented out by design.
+-- 
+-- DO NOT uncomment statements without:
+--   1. Completing REFACTOR-04 actual database audit
+--   2. Adapting queries based on real findings
+--   3. Obtaining security team approval
+--   4. Creating and testing database backup
+--   5. Testing in non-production environment first
+-- 
+-- For execution, proceed to REFACTOR-04 with proper approval workflow.
+-- 
 -- ============================================================================
