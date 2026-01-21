@@ -3,6 +3,7 @@ import uuid
 from datetime import datetime, timezone
 
 from ...background import Job, default_job_runner
+from ...domain.invariants import validate_referential_integrity_anime
 from ...domain.ports.favorite import (
     FavoriteData,
     FavoriteRepository,
@@ -32,15 +33,22 @@ async def _apply_add_favorite(
     created_at: datetime,
 ) -> None:
     """
-    Apply add favorite operation with exactly-once semantics.
+    Apply add favorite operation with exactly-once semantics and domain invariants.
     
     IDEMPOTENCY KEY: (user_id, anime_id)
     INVARIANT: Repeated execution either creates favorite OR skips if exists.
+    
+    DOMAIN INVARIANTS ENFORCED:
+    - INVARIANT-3: Referential integrity (anime must exist)
     """
     try:
+        # INVARIANT-3: Referential integrity - anime must exist
         anime_exists = await get_anime_by_id(favorite_repo, anime_id)
-        if not anime_exists:
-            raise NotFoundError("Anime not found")
+        validate_referential_integrity_anime(
+            anime_exists,
+            anime_id=anime_id,
+            operation="add favorite",
+        )
 
         # IDEMPOTENCY CHECK: Check if effect already applied
         existing = await get_favorite(favorite_repo, user_id, anime_id)

@@ -3,6 +3,14 @@ import uuid
 from datetime import datetime, timezone
 
 from ...background import Job, default_job_runner
+from ...domain.invariants import (
+    InvariantViolation,
+    validate_forward_only_episode,
+    validate_forward_only_progress,
+    validate_position_bounds,
+    validate_progress_bounds,
+    validate_referential_integrity_anime,
+)
 from ...domain.ports.watch_progress import (
     WatchProgressData,
     WatchProgressRepository,
@@ -52,14 +60,28 @@ async def _apply_watch_progress(
     last_watched_at: datetime,
 ) -> None:
     """
-    Apply watch progress update with exactly-once semantics.
+    Apply watch progress update with exactly-once semantics and domain invariants.
     
     IDEMPOTENCY KEY: (user_id, anime_id)
     INVARIANT: Repeated execution either applies effect OR skips deterministically.
+    
+    DOMAIN INVARIANTS ENFORCED:
+    - INVARIANT-2: Forward-only episode (cannot decrease episode number)
+    - INVARIANT-2: Forward-only progress (cannot decrease progress within same episode)
+    - INVARIANT-2: Valid bounds (progress 0-100, position >= 0)
+    - INVARIANT-3: Referential integrity (anime must exist)
     """
+    # INVARIANT-3: Referential integrity - anime must exist
     anime_exists = await get_anime_by_id(watch_repo, anime_id)
-    if not anime_exists:
-        raise NotFoundError("Anime not found")
+    validate_referential_integrity_anime(
+        anime_exists,
+        anime_id=anime_id,
+        operation="update watch progress",
+    )
+
+    # INVARIANT-2: Validate bounds
+    validate_progress_bounds(progress_percent)
+    validate_position_bounds(position_seconds)
 
     # IDEMPOTENCY CHECK: Get current state before applying effect
     progress = await get_watch_progress(watch_repo, user_id, anime_id)
@@ -80,6 +102,22 @@ async def _apply_watch_progress(
                 episode,
             )
             return
+        
+        # INVARIANT-2: Forward-only state checks
+        validate_forward_only_episode(
+            progress.episode,
+            episode,
+            user_id=user_id,
+            anime_id=anime_id,
+        )
+        validate_forward_only_progress(
+            progress.episode,
+            progress.progress_percent,
+            episode,
+            progress_percent,
+            user_id=user_id,
+            anime_id=anime_id,
+        )
         
         # Update existing progress (idempotent via unique constraint)
         await watch_repo.update(
