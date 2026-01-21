@@ -24,6 +24,10 @@ DEFAULT_INTERVAL_MINUTES = 60
 SCHEDULER_LOCK_KEY = "parser_autoupdate_scheduler"
 SCHEDULER_LOCK_TTL = 90  # seconds
 
+# Parser-specific concurrency limit
+PARSER_MAX_CONCURRENCY = 5
+PARSER_COUNTER_KEY = "counter:parser_jobs"
+
 
 logger = logging.getLogger("kitsu.parser.autoupdate")
 
@@ -106,8 +110,8 @@ class ParserAutoupdateScheduler:
                 )
 
         except (RedisError, ValueError) as exc:
-            logger.warning(
-                "[SCHEDULER] lock_acquire_failed lock_key=%s reason=redis_unavailable worker_id=%s error=%s",
+            logger.error(
+                "[SCHEDULER] start_failed lock_key=%s reason=redis_unavailable worker_id=%s error=%s",
                 SCHEDULER_LOCK_KEY,
                 self._worker_id,
                 exc,
@@ -153,15 +157,76 @@ class ParserAutoupdateScheduler:
 
     async def run_once(self, *, force: bool = False) -> dict[str, object]:
         """Run autoupdate once (for manual triggers or testing)."""
-        async with self._session_factory() as session:
-            settings = await get_parser_settings(session)
-            interval = resolve_update_interval_minutes(settings)
-            if not settings.enable_autoupdate and not force:
-                return {"status": "disabled", "interval_minutes": interval}
-            service = self._service_factory(session=session, settings=settings)
-            summary = await service.run(force=True)
-            summary["interval_minutes"] = interval
-            return summary
+        running_incremented = False
+        try:
+            # Gate check: can we start this parser job right now?
+            redis = await self._ensure_redis()
+            
+            try:
+                current = await redis.get(PARSER_COUNTER_KEY)
+                current_running = int(current) if current else 0
+                
+                if current_running >= PARSER_MAX_CONCURRENCY:
+                    # Limit exceeded - reject parser job
+                    logger.error(
+                        "[PARSER] rejected reason=parser_limit_exceeded current=%d max=%d worker_id=%s",
+                        current_running,
+                        PARSER_MAX_CONCURRENCY,
+                        self._worker_id,
+                    )
+                    return {
+                        "status": "rejected",
+                        "reason": "parser_limit_exceeded",
+                        "max_concurrency": PARSER_MAX_CONCURRENCY,
+                    }
+            except (RedisError, ValueError) as exc:
+                # Redis unavailable - reject parser job
+                logger.error(
+                    "[PARSER] rejected reason=redis_unavailable worker_id=%s error=%s",
+                    self._worker_id,
+                    exc,
+                )
+                return {
+                    "status": "failed",
+                    "reason": "redis_unavailable",
+                }
+            
+            # Increment counter immediately before parser job starts
+            await redis.incr(PARSER_COUNTER_KEY)
+            running_incremented = True
+            
+            async with self._session_factory() as session:
+                settings = await get_parser_settings(session)
+                interval = resolve_update_interval_minutes(settings)
+                if not settings.enable_autoupdate and not force:
+                    return {"status": "disabled", "interval_minutes": interval}
+                service = self._service_factory(session=session, settings=settings)
+                summary = await service.run(force=True)
+                summary["interval_minutes"] = interval
+                return summary
+                
+        except (RedisError, ValueError) as exc:
+            logger.error(
+                "[PARSER] redis_error reason=redis_unavailable worker_id=%s error=%s",
+                self._worker_id,
+                exc,
+            )
+            return {
+                "status": "failed",
+                "reason": "redis_unavailable",
+            }
+        finally:
+            # Always decrement counter for parser jobs that started running
+            if running_incremented:
+                try:
+                    redis = await self._ensure_redis()
+                    await redis.decr(PARSER_COUNTER_KEY)
+                except (RedisError, ValueError) as exc:
+                    logger.error(
+                        "[PARSER] counter_decrement_failed worker_id=%s error=%s",
+                        self._worker_id,
+                        exc,
+                    )
 
     async def _extend_lock_loop(self) -> None:
         """Periodically extend lock to prevent expiration."""
