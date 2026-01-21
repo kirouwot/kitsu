@@ -7,7 +7,7 @@ import pytest
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
-from app.auth import rbac
+from app.auth import rbac_contract
 from app.models.base import Base
 from app.parser.admin.schemas import ParserMatchRequest, ParserUnmatchRequest
 from app.parser.tables import anime_external, parser_sources
@@ -79,18 +79,18 @@ def admin_router(monkeypatch: pytest.MonkeyPatch):
 
 def test_admin_access_allows_explicit_permissions() -> None:
     """SECURITY-01: Admin should have explicit permissions, not wildcards."""
-    admin_perms = rbac.resolve_permissions("admin")
+    admin_perms = rbac_contract.ROLE_PERMISSION_MAPPINGS.get("admin", frozenset())
     # No wildcards allowed
     assert "admin:*" not in admin_perms
     # But explicit admin permissions should be present
     assert "admin.parser.settings" in admin_perms
-    assert "admin.parser.emergency" in admin_perms
+    assert "admin.parser.emergency" not in admin_perms  # Only super_admin has this
     assert "admin.parser.logs" in admin_perms
 
 
 def test_admin_access_denies_non_admin() -> None:
     """Non-admin users should not have admin permissions."""
-    user_perms = rbac.resolve_permissions("user")
+    user_perms = rbac_contract.ROLE_PERMISSION_MAPPINGS.get("user", frozenset())
     assert "admin.parser.settings" not in user_perms
     assert "admin.parser.emergency" not in user_perms
     assert "admin.parser.logs" not in user_perms
