@@ -1,8 +1,11 @@
 import hashlib
+import logging
 import time
 from redis import RedisError
 
 from ..infra.redis import get_redis_client
+
+logger = logging.getLogger(__name__)
 
 AUTH_RATE_LIMIT_MAX_ATTEMPTS = 5
 AUTH_RATE_LIMIT_WINDOW_SECONDS = 60
@@ -54,16 +57,25 @@ class SoftRateLimiter:
         try:
             # Execute Lua script atomically
             self._incr_script(keys=[redis_key], args=[self.window_seconds])
-        except RedisError:
-            # Fail closed: if we can't record, assume limit exceeded
-            pass
+        except RedisError as exc:
+            # FAIL-SECURE: Log error but don't crash - rate limit still enforced via is_limited()
+            logger.error(
+                "rate_limit_record_failed key=%s reason=redis_error error=%s",
+                redis_key,
+                exc,
+            )
 
     def reset(self, key: str) -> None:
         redis_key = self._make_redis_key(key)
         try:
             self._redis.delete(redis_key)
-        except RedisError:
-            pass
+        except RedisError as exc:
+            # Log reset failure - not critical as key will expire naturally
+            logger.warning(
+                "rate_limit_reset_failed key=%s reason=redis_error error=%s",
+                redis_key,
+                exc,
+            )
 
     def clear(self) -> None:
         """Clear all rate limit keys. For testing only."""
@@ -76,8 +88,12 @@ class SoftRateLimiter:
                     self._redis.delete(*keys)
                 if cursor == 0:
                     break
-        except RedisError:
-            pass
+        except RedisError as exc:
+            # Log clear failure - only used in tests
+            logger.warning(
+                "rate_limit_clear_failed reason=redis_error error=%s",
+                exc,
+            )
 
 
 def _make_key(scope: str, identifier: str, client_ip: str | None) -> str:

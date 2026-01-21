@@ -17,6 +17,19 @@ JobHandler = Callable[[], Awaitable[None]]
 MAX_RUNNING_JOBS = 20
 GLOBAL_JOB_COUNTER_KEY = "counter:global_jobs"
 
+# Lua script for atomic check-and-increment with limit enforcement
+# Returns: 1 if incremented, 0 if limit exceeded
+CHECK_AND_INCR_SCRIPT = """
+local key = KEYS[1]
+local max_limit = tonumber(ARGV[1])
+local current = tonumber(redis.call('GET', key) or 0)
+if current >= max_limit then
+    return 0
+end
+redis.call('INCR', key)
+return 1
+"""
+
 
 class JobStatus(str, Enum):
     QUEUED = "queued"
@@ -49,6 +62,7 @@ class JobRunner:
         self._logger = logging.getLogger("kitsu.jobs")
         self._redis_available = True
         self._worker_id = str(uuid.uuid4())[:8]  # Short UUID for observability
+        self._check_incr_script = None  # Lazy-initialized Lua script
 
     async def _ensure_redis(self) -> AsyncRedis:
         """Lazy initialize Redis client."""
@@ -61,6 +75,11 @@ class JobRunner:
                 self._logger.error("Redis unavailable for job runner: %s", exc)
                 self._redis_available = False
                 raise
+        
+        # Lazy-initialize Lua script (only once)
+        if self._check_incr_script is None and self._redis is not None:
+            self._check_incr_script = self._redis.register_script(CHECK_AND_INCR_SCRIPT)
+        
         return self._redis
 
     def _make_status_key(self, job_key: str) -> str:
@@ -214,20 +233,23 @@ class JobRunner:
             if criticality != "critical":
                 # Only IMPORTANT and BEST_EFFORT jobs check backpressure
                 try:
-                    current = await redis.get(GLOBAL_JOB_COUNTER_KEY)
-                    current_running = int(current) if current else 0
+                    # ATOMIC CHECK-AND-INCREMENT using Lua script
+                    # Returns: 1 if incremented (approved), 0 if limit exceeded (rejected)
+                    result = await self._check_incr_script(
+                        keys=[GLOBAL_JOB_COUNTER_KEY],
+                        args=[MAX_RUNNING_JOBS],
+                    )
                     
-                    if current_running >= MAX_RUNNING_JOBS:
-                        # LIMIT EXCEEDED - only affects non-CRITICAL jobs
+                    if result == 0:
+                        # LIMIT EXCEEDED - atomic check confirmed limit reached
                         
                         if criticality == "best_effort":
                             # BEST_EFFORT: DROP with warning
                             await redis.set(status_key, JobStatus.FAILED.value, ex=86400)
                             self._logger.warning(
-                                "[JOB] dropped job_key=%s criticality=%s reason=global_limit_exceeded current=%d max=%d worker_id=%s",
+                                "[JOB] dropped job_key=%s criticality=%s reason=global_limit_exceeded max=%d worker_id=%s",
                                 job.key,
                                 criticality,
-                                current_running,
                                 MAX_RUNNING_JOBS,
                                 self._worker_id,
                             )
@@ -237,14 +259,16 @@ class JobRunner:
                             # IMPORTANT: REJECT with error
                             await redis.set(status_key, JobStatus.FAILED.value, ex=86400)
                             self._logger.error(
-                                "[JOB] rejected job_key=%s criticality=%s reason=global_limit_exceeded current=%d max=%d worker_id=%s",
+                                "[JOB] rejected job_key=%s criticality=%s reason=global_limit_exceeded max=%d worker_id=%s",
                                 job.key,
                                 criticality,
-                                current_running,
                                 MAX_RUNNING_JOBS,
                                 self._worker_id,
                             )
                             return
+                    
+                    # SUCCESS: Counter incremented atomically, job approved
+                    running_incremented = True
                             
                 except (RedisError, ValueError) as exc:
                     # Redis unavailable - only affects non-CRITICAL jobs
@@ -270,12 +294,6 @@ class JobRunner:
                             exc,
                         )
                         return
-            
-            # Job approved to start (either CRITICAL or passed backpressure check)
-            # Increment counter for IMPORTANT and BEST_EFFORT only
-            if criticality != "critical":
-                await redis.incr(GLOBAL_JOB_COUNTER_KEY)
-                running_incremented = True
 
             # Update status to RUNNING
             await redis.set(status_key, JobStatus.RUNNING.value, ex=3600)
@@ -338,14 +356,34 @@ class JobRunner:
         finally:
             # Decrement counter only for jobs that incremented it
             if running_incremented:
-                try:
-                    redis = await self._ensure_redis()
-                    await redis.decr(GLOBAL_JOB_COUNTER_KEY)
-                except (RedisError, ValueError) as exc:
-                    self._logger.error(
-                        "[JOB] counter_decrement_failed job_key=%s criticality=%s worker_id=%s error=%s",
-                        job.key,
-                        criticality,
-                        self._worker_id,
-                        exc,
-                    )
+                # Retry decrement with exponential backoff to prevent counter inflation
+                max_retries = 3
+                retry_delay = 0.1
+                for attempt in range(max_retries):
+                    try:
+                        redis = await self._ensure_redis()
+                        await redis.decr(GLOBAL_JOB_COUNTER_KEY)
+                        # Success - counter decremented
+                        break
+                    except (RedisError, ValueError) as exc:
+                        if attempt < max_retries - 1:
+                            # Not last attempt - retry with backoff
+                            self._logger.warning(
+                                "[JOB] counter_decrement_retry job_key=%s attempt=%d/%d worker_id=%s error=%s",
+                                job.key,
+                                attempt + 1,
+                                max_retries,
+                                self._worker_id,
+                                exc,
+                            )
+                            await asyncio.sleep(retry_delay)
+                            retry_delay *= 2  # Exponential backoff
+                        else:
+                            # Last attempt failed - permanent counter inflation
+                            self._logger.error(
+                                "[JOB] counter_decrement_failed_permanently job_key=%s criticality=%s worker_id=%s error=%s",
+                                job.key,
+                                criticality,
+                                self._worker_id,
+                                exc,
+                            )
