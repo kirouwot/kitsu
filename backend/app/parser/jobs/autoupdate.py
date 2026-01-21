@@ -11,7 +11,7 @@ from redis.exceptions import RedisError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import AsyncSessionLocal
-from app.infra.redis import DistributedLock, GlobalJobCounter, get_async_redis_client
+from app.infra.redis import DistributedLock, get_async_redis_client
 
 from ..services.autoupdate_service import (
     ParserEpisodeAutoupdateService,
@@ -26,7 +26,7 @@ SCHEDULER_LOCK_TTL = 90  # seconds
 
 # Parser-specific concurrency limit
 PARSER_MAX_CONCURRENCY = 5
-PARSER_COUNTER_KEY = "parser_jobs"
+PARSER_COUNTER_KEY = "counter:parser_jobs"
 
 
 logger = logging.getLogger("kitsu.parser.autoupdate")
@@ -157,25 +157,43 @@ class ParserAutoupdateScheduler:
 
     async def run_once(self, *, force: bool = False) -> dict[str, object]:
         """Run autoupdate once (for manual triggers or testing)."""
-        parser_acquired = False
+        running_incremented = False
         try:
-            # Check parser concurrency limit
+            # Gate check: can we start this parser job right now?
             redis = await self._ensure_redis()
-            parser_counter = GlobalJobCounter(redis, PARSER_COUNTER_KEY, PARSER_MAX_CONCURRENCY)
             
-            if not await parser_counter.try_acquire():
+            try:
+                current = await redis.get(PARSER_COUNTER_KEY)
+                current_running = int(current) if current else 0
+                
+                if current_running >= PARSER_MAX_CONCURRENCY:
+                    # Limit exceeded - reject parser job
+                    logger.error(
+                        "[PARSER] rejected reason=parser_limit_exceeded current=%d max=%d worker_id=%s",
+                        current_running,
+                        PARSER_MAX_CONCURRENCY,
+                        self._worker_id,
+                    )
+                    return {
+                        "status": "rejected",
+                        "reason": "parser_limit_exceeded",
+                        "max_concurrency": PARSER_MAX_CONCURRENCY,
+                    }
+            except (RedisError, ValueError) as exc:
+                # Redis unavailable - reject parser job
                 logger.error(
-                    "[PARSER] rejected reason=parser_limit_exceeded max=%d worker_id=%s",
-                    PARSER_MAX_CONCURRENCY,
+                    "[PARSER] rejected reason=redis_unavailable worker_id=%s error=%s",
                     self._worker_id,
+                    exc,
                 )
                 return {
-                    "status": "rejected",
-                    "reason": "parser_limit_exceeded",
-                    "max_concurrency": PARSER_MAX_CONCURRENCY,
+                    "status": "failed",
+                    "reason": "redis_unavailable",
                 }
             
-            parser_acquired = True
+            # Increment counter immediately before parser job starts
+            await redis.incr(PARSER_COUNTER_KEY)
+            running_incremented = True
             
             async with self._session_factory() as session:
                 settings = await get_parser_settings(session)
@@ -198,15 +216,14 @@ class ParserAutoupdateScheduler:
                 "reason": "redis_unavailable",
             }
         finally:
-            # Always release parser slot
-            if parser_acquired:
+            # Always decrement counter for parser jobs that started running
+            if running_incremented:
                 try:
                     redis = await self._ensure_redis()
-                    parser_counter = GlobalJobCounter(redis, PARSER_COUNTER_KEY, PARSER_MAX_CONCURRENCY)
-                    await parser_counter.release()
+                    await redis.decr(PARSER_COUNTER_KEY)
                 except (RedisError, ValueError) as exc:
                     logger.error(
-                        "[PARSER] counter_release_failed worker_id=%s error=%s",
+                        "[PARSER] counter_decrement_failed worker_id=%s error=%s",
                         self._worker_id,
                         exc,
                     )

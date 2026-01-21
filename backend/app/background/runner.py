@@ -9,13 +9,13 @@ from typing import Awaitable, Callable
 from redis.asyncio import Redis as AsyncRedis
 from redis.exceptions import RedisError
 
-from app.infra.redis import GlobalJobCounter, get_async_redis_client
+from app.infra.redis import get_async_redis_client
 
 JobHandler = Callable[[], Awaitable[None]]
 
 # Global limit for concurrent jobs across all workers
 MAX_RUNNING_JOBS = 20
-GLOBAL_JOB_COUNTER_KEY = "global_jobs"
+GLOBAL_JOB_COUNTER_KEY = "counter:global_jobs"
 
 
 class JobStatus(str, Enum):
@@ -191,25 +191,41 @@ class JobRunner:
 
     async def _run_job(self, job: Job) -> None:
         """Execute job with retry logic and status tracking."""
-        job_acquired = False
+        running_incremented = False
         try:
             redis = await self._ensure_redis()
             status_key = self._make_status_key(job.key)
             
-            # Check global job limit before starting
-            global_counter = GlobalJobCounter(redis, GLOBAL_JOB_COUNTER_KEY, MAX_RUNNING_JOBS)
-            if not await global_counter.try_acquire():
-                # Global limit exceeded - reject job
+            # Gate check: can we start this job right now?
+            try:
+                current = await redis.get(GLOBAL_JOB_COUNTER_KEY)
+                current_running = int(current) if current else 0
+                
+                if current_running >= MAX_RUNNING_JOBS:
+                    # Limit exceeded - reject job
+                    await redis.set(status_key, JobStatus.FAILED.value, ex=86400)
+                    self._logger.error(
+                        "[JOB] rejected job_key=%s reason=global_limit_exceeded current=%d max=%d worker_id=%s",
+                        job.key,
+                        current_running,
+                        MAX_RUNNING_JOBS,
+                        self._worker_id,
+                    )
+                    return
+            except (RedisError, ValueError) as exc:
+                # Redis unavailable - reject job
                 await redis.set(status_key, JobStatus.FAILED.value, ex=86400)
                 self._logger.error(
-                    "[JOB] rejected job_key=%s reason=global_limit_exceeded max=%d worker_id=%s",
+                    "[JOB] rejected job_key=%s reason=redis_unavailable worker_id=%s error=%s",
                     job.key,
-                    MAX_RUNNING_JOBS,
                     self._worker_id,
+                    exc,
                 )
                 return
             
-            job_acquired = True
+            # Increment counter immediately before job starts
+            await redis.incr(GLOBAL_JOB_COUNTER_KEY)
+            running_incremented = True
 
             # Update status to RUNNING
             await redis.set(status_key, JobStatus.RUNNING.value, ex=3600)
@@ -263,15 +279,14 @@ class JobRunner:
                 exc,
             )
         finally:
-            # Always release the job slot, even on errors
-            if job_acquired:
+            # Always decrement counter for jobs that started running
+            if running_incremented:
                 try:
                     redis = await self._ensure_redis()
-                    global_counter = GlobalJobCounter(redis, GLOBAL_JOB_COUNTER_KEY, MAX_RUNNING_JOBS)
-                    await global_counter.release()
+                    await redis.decr(GLOBAL_JOB_COUNTER_KEY)
                 except (RedisError, ValueError) as exc:
                     self._logger.error(
-                        "[JOB] counter_release_failed job_key=%s worker_id=%s error=%s",
+                        "[JOB] counter_decrement_failed job_key=%s worker_id=%s error=%s",
                         job.key,
                         self._worker_id,
                         exc,
