@@ -10,6 +10,17 @@ RATE_LIMIT_MESSAGE = "Too many attempts, try again later"
 IDENTIFIER_HASH_LENGTH = 64
 IP_FALLBACK_LENGTH = 8
 
+# Lua script for atomic INCR + EXPIRE
+INCR_WITH_EXPIRE_SCRIPT = """
+local key = KEYS[1]
+local ttl = tonumber(ARGV[1])
+local count = redis.call('INCR', key)
+if count == 1 then
+    redis.call('EXPIRE', key, ttl)
+end
+return count
+"""
+
 
 class RateLimitExceededError(Exception):
     """Raised when the rate limit is exceeded for a given key."""
@@ -20,6 +31,8 @@ class SoftRateLimiter:
         self.max_attempts = max_attempts
         self.window_seconds = window_seconds
         self._redis = get_redis_client()
+        # Register the Lua script
+        self._incr_script = self._redis.register_script(INCR_WITH_EXPIRE_SCRIPT)
 
     def _make_redis_key(self, key: str) -> str:
         """Prefix key for Redis namespace."""
@@ -32,19 +45,15 @@ class SoftRateLimiter:
             if count is None:
                 return False
             return int(count) >= self.max_attempts
-        except (RedisError, ValueError):
+        except RedisError:
             # Fail closed: if Redis is unavailable, block the request
             return True
 
     def record_failure(self, key: str, now: float | None = None) -> None:
         redis_key = self._make_redis_key(key)
         try:
-            # Use pipeline to ensure atomicity
-            pipe = self._redis.pipeline()
-            pipe.incr(redis_key)
-            pipe.expire(redis_key, self.window_seconds)
-            results = pipe.execute()
-            # results[0] is the count after increment
+            # Execute Lua script atomically
+            self._incr_script(keys=[redis_key], args=[self.window_seconds])
         except RedisError:
             # Fail closed: if we can't record, assume limit exceeded
             pass
