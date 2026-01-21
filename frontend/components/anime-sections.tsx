@@ -39,9 +39,6 @@ const AnimeSections = (props: Props) => {
               episodeCard
               sub={anime?.episodes?.sub}
               dub={anime?.episodes?.dub}
-              rating={anime?.rating || null}
-              isNew={anime?.isNew || false}
-              isOngoing={anime?.status === "Ongoing"}
             />
           </BlurFade>
         ))}

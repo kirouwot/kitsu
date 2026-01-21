@@ -8,7 +8,12 @@ export type Permission =
   | "write:profile"
   | "read:content"
   | "write:content"
-  | "admin:*";
+  | "admin:*"
+  | "anime.view"
+  | "anime.edit"
+  | "admin:parser.logs"
+  | "admin:parser.settings"
+  | "admin:parser.emergency";
 
 export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   guest: ["read:content"],
@@ -19,6 +24,11 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "read:content",
     "write:content",
     "admin:*",
+    "anime.view",
+    "anime.edit",
+    "admin:parser.logs",
+    "admin:parser.settings",
+    "admin:parser.emergency",
   ],
 };
 
