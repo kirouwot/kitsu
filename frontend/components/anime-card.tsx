@@ -5,7 +5,7 @@ import Image from "next/image";
 import { cn, formatSecondsToMMSS } from "@/lib/utils";
 import { Badge } from "./ui/badge";
 import { buttonVariants } from "./ui/button";
-import { Captions, Mic, Play, Star } from "lucide-react";
+import { Captions, Mic, Play } from "lucide-react";
 import { WatchHistory } from "@/hooks/use-get-bookmark";
 import { Progress } from "./ui/progress";
 import { motion } from "framer-motion";
