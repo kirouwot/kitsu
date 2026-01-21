@@ -35,22 +35,6 @@ class Job:
     criticality: str = "important"  # "critical" | "important" | "best_effort"
 
 
-def _infer_criticality_from_key(job_key: str) -> str:
-    """
-    Infer job criticality from job key pattern.
-    Used as fallback when criticality is not explicitly set.
-    
-    CRITICAL: User-facing data operations (watch progress, favorites)
-    IMPORTANT: Internal coordination (default)
-    BEST_EFFORT: Parser jobs, background sync
-    """
-    if job_key.startswith("watch-progress:") or job_key.startswith("favorite:"):
-        return "critical"
-    if job_key.startswith("parser:") or "autoupdate" in job_key.lower():
-        return "best_effort"
-    return "important"
-
-
 class JobRunner:
     """
     Distributed job runner using Redis for coordination.
@@ -211,109 +195,87 @@ class JobRunner:
         Execute job with retry logic and status tracking.
         
         FAILURE BOUNDARIES IMPLEMENTATION:
-        - CRITICAL jobs: fail fast if can't start, never drop, explicit logging
-        - IMPORTANT jobs: respect limits, can be rejected with explicit reason
-        - BEST_EFFORT jobs: drop first under pressure, no retry on limit exceeded
+        - CRITICAL jobs: bypass all backpressure, always attempt to start
+        - IMPORTANT jobs: respect limits, can be rejected
+        - BEST_EFFORT jobs: drop first under pressure
         
         All decisions are logged with criticality, reason, and worker_id.
         """
         running_incremented = False
-        
-        # Normalize criticality
-        criticality = job.criticality if job.criticality in {"critical", "important", "best_effort"} else _infer_criticality_from_key(job.key)
+        criticality = job.criticality
         
         try:
             redis = await self._ensure_redis()
             status_key = self._make_status_key(job.key)
             
-            # BOUNDARY CHECK: Can we start this job?
-            # Decision point: START / DROP / FAIL
+            # SINGLE DECISION POINT: START / DROP / REJECT
+            # CRITICAL jobs ALWAYS bypass this check and proceed to execution
             
-            try:
-                current = await redis.get(GLOBAL_JOB_COUNTER_KEY)
-                current_running = int(current) if current else 0
-                
-                if current_running >= MAX_RUNNING_JOBS:
-                    # LIMIT EXCEEDED - behavior depends on criticality
+            if criticality != "critical":
+                # Only IMPORTANT and BEST_EFFORT jobs check backpressure
+                try:
+                    current = await redis.get(GLOBAL_JOB_COUNTER_KEY)
+                    current_running = int(current) if current else 0
+                    
+                    if current_running >= MAX_RUNNING_JOBS:
+                        # LIMIT EXCEEDED - only affects non-CRITICAL jobs
+                        
+                        if criticality == "best_effort":
+                            # BEST_EFFORT: DROP with warning
+                            await redis.set(status_key, JobStatus.FAILED.value, ex=86400)
+                            self._logger.warning(
+                                "[JOB] dropped job_key=%s criticality=%s reason=global_limit_exceeded current=%d max=%d worker_id=%s",
+                                job.key,
+                                criticality,
+                                current_running,
+                                MAX_RUNNING_JOBS,
+                                self._worker_id,
+                            )
+                            return
+                        
+                        else:  # important
+                            # IMPORTANT: REJECT with error
+                            await redis.set(status_key, JobStatus.FAILED.value, ex=86400)
+                            self._logger.error(
+                                "[JOB] rejected job_key=%s criticality=%s reason=global_limit_exceeded current=%d max=%d worker_id=%s",
+                                job.key,
+                                criticality,
+                                current_running,
+                                MAX_RUNNING_JOBS,
+                                self._worker_id,
+                            )
+                            return
+                            
+                except (RedisError, ValueError) as exc:
+                    # Redis unavailable - only affects non-CRITICAL jobs
                     
                     if criticality == "best_effort":
-                        # BEST_EFFORT: DROP without retry
-                        await redis.set(status_key, JobStatus.FAILED.value, ex=86400)
+                        # BEST_EFFORT: DROP with warning
                         self._logger.warning(
-                            "[JOB] dropped job_key=%s criticality=%s reason=global_limit_exceeded current=%d max=%d worker_id=%s",
+                            "[JOB] dropped job_key=%s criticality=%s reason=redis_unavailable worker_id=%s error=%s",
                             job.key,
                             criticality,
-                            current_running,
-                            MAX_RUNNING_JOBS,
                             self._worker_id,
-                        )
-                        return
-                    
-                    elif criticality == "critical":
-                        # CRITICAL: FAIL FAST - explicit failure, never silent
-                        await redis.set(status_key, JobStatus.FAILED.value, ex=86400)
-                        self._logger.error(
-                            "[JOB] critical_failed job_key=%s criticality=%s reason=global_limit_exceeded current=%d max=%d worker_id=%s",
-                            job.key,
-                            criticality,
-                            current_running,
-                            MAX_RUNNING_JOBS,
-                            self._worker_id,
+                            exc,
                         )
                         return
                     
                     else:  # important
-                        # IMPORTANT: Reject with explicit reason
-                        await redis.set(status_key, JobStatus.FAILED.value, ex=86400)
+                        # IMPORTANT: REJECT with error
                         self._logger.error(
-                            "[JOB] rejected job_key=%s criticality=%s reason=global_limit_exceeded current=%d max=%d worker_id=%s",
+                            "[JOB] rejected job_key=%s criticality=%s reason=redis_unavailable worker_id=%s error=%s",
                             job.key,
                             criticality,
-                            current_running,
-                            MAX_RUNNING_JOBS,
                             self._worker_id,
+                            exc,
                         )
                         return
-                        
-            except (RedisError, ValueError) as exc:
-                # Redis unavailable - behavior depends on criticality
-                
-                if criticality == "best_effort":
-                    # BEST_EFFORT: DROP on Redis error
-                    self._logger.warning(
-                        "[JOB] dropped job_key=%s criticality=%s reason=redis_unavailable worker_id=%s error=%s",
-                        job.key,
-                        criticality,
-                        self._worker_id,
-                        exc,
-                    )
-                    return
-                
-                elif criticality == "critical":
-                    # CRITICAL: FAIL FAST on Redis error
-                    self._logger.error(
-                        "[JOB] critical_failed job_key=%s criticality=%s reason=redis_unavailable worker_id=%s error=%s",
-                        job.key,
-                        criticality,
-                        self._worker_id,
-                        exc,
-                    )
-                    return
-                
-                else:  # important
-                    # IMPORTANT: Reject with explicit reason
-                    self._logger.error(
-                        "[JOB] rejected job_key=%s criticality=%s reason=redis_unavailable worker_id=%s error=%s",
-                        job.key,
-                        criticality,
-                        self._worker_id,
-                        exc,
-                    )
-                    return
             
-            # Increment counter immediately before job starts
-            await redis.incr(GLOBAL_JOB_COUNTER_KEY)
-            running_incremented = True
+            # Job approved to start (either CRITICAL or passed backpressure check)
+            # Increment counter for IMPORTANT and BEST_EFFORT only
+            if criticality != "critical":
+                await redis.incr(GLOBAL_JOB_COUNTER_KEY)
+                running_incremented = True
 
             # Update status to RUNNING
             await redis.set(status_key, JobStatus.RUNNING.value, ex=3600)
@@ -324,12 +286,8 @@ class JobRunner:
                 self._worker_id,
             )
 
-            # Execute with retries
-            # BEST_EFFORT: Single attempt only (max_attempts ignored)
-            # CRITICAL/IMPORTANT: Respect max_attempts
-            effective_max_attempts = 1 if criticality == "best_effort" else job.max_attempts
-            
-            while job.attempts < effective_max_attempts:
+            # Execute with retries (controlled by job.max_attempts, not by runner)
+            while job.attempts < job.max_attempts:
                 try:
                     await job.handler()
                     # Success
@@ -348,11 +306,11 @@ class JobRunner:
                         job.key,
                         criticality,
                         job.attempts,
-                        effective_max_attempts,
+                        job.max_attempts,
                         self._worker_id,
                         exc_info=exc,
                     )
-                    if job.attempts >= effective_max_attempts:
+                    if job.attempts >= job.max_attempts:
                         await redis.set(status_key, JobStatus.FAILED.value, ex=86400)
                         self._logger.error(
                             "[JOB] failed_permanently job_key=%s criticality=%s worker_id=%s",
@@ -363,13 +321,13 @@ class JobRunner:
                         return
                     delay = min(
                         job.backoff_seconds * job.attempts,
-                        job.backoff_seconds * effective_max_attempts,
+                        job.backoff_seconds * job.max_attempts,
                     )
                     await asyncio.sleep(delay)
 
         except (RedisError, ValueError) as exc:
-            # Outer exception handler - should not normally be reached
-            # Log with criticality for observability
+            # Redis error during execution - log but don't crash
+            # CRITICAL jobs continue despite Redis errors
             self._logger.error(
                 "[JOB] redis_error job_key=%s criticality=%s worker_id=%s error=%s",
                 job.key,
@@ -378,7 +336,7 @@ class JobRunner:
                 exc,
             )
         finally:
-            # Always decrement counter for jobs that started running
+            # Decrement counter only for jobs that incremented it
             if running_incremented:
                 try:
                     redis = await self._ensure_redis()

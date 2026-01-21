@@ -28,6 +28,21 @@ SCHEDULER_LOCK_TTL = 90  # seconds
 PARSER_MAX_CONCURRENCY = 5
 PARSER_COUNTER_KEY = "counter:parser_jobs"
 
+# ARCHITECTURAL DECISION: Parser autoupdate is BEST_EFFORT
+#
+# WHY: Parser jobs are background sync tasks that:
+# 1. Do NOT affect user-facing operations or critical paths
+# 2. Can be safely skipped under system overload
+# 3. Will naturally retry on next scheduled run
+# 4. Must NEVER block or delay critical user operations (watch progress, favorites)
+#
+# BEHAVIOR:
+# - Single attempt only (no retry on failure)
+# - Dropped (not failed) when parser concurrency limit exceeded
+# - Dropped (not failed) when Redis unavailable
+# - Warning-level logging (not error) for drops
+# - Never consumes global job counter slots that could block CRITICAL jobs
+
 
 logger = logging.getLogger("kitsu.parser.autoupdate")
 
