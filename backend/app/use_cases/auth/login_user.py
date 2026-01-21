@@ -34,7 +34,7 @@ async def login_user(
     client_ip: str | None = None,
 ) -> AuthTokens:
     try:
-        key = check_login_rate_limit(email, client_ip)
+        key = await check_login_rate_limit(email, client_ip)
     except RateLimitExceededError:
         raise AppError(
             RATE_LIMIT_MESSAGE,
@@ -45,7 +45,7 @@ async def login_user(
     try:
         tokens = await _authenticate_user(user_port, token_port, email, password)
     except (AuthError, PermissionError):
-        record_login_failure(key)
+        await record_login_failure(key)
         await token_port.rollback()
         raise
     except AppError:
@@ -54,5 +54,5 @@ async def login_user(
     except Exception:
         await token_port.rollback()
         raise
-    reset_login_limit(key)
+    await reset_login_limit(key)
     return tokens
