@@ -157,7 +157,7 @@ class JobRunner:
                     await asyncio.sleep(0.1)
                     continue
 
-                # Get next job (FIFO order)
+                # Get next job (insertion order - Python 3.7+ dict guarantee)
                 job_key = next(iter(self._jobs.keys()))
                 job = self._jobs.pop(job_key)
                 await self._run_job(job)

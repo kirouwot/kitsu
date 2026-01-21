@@ -50,6 +50,7 @@ class ParserAutoupdateScheduler:
         self._task: asyncio.Task[None] | None = None
         self._lock: DistributedLock | None = None
         self._lock_extend_task: asyncio.Task[None] | None = None
+        self._should_stop = False  # Flag for graceful shutdown
 
     async def _ensure_redis(self) -> AsyncRedis:
         """Lazy initialize Redis client."""
@@ -69,6 +70,8 @@ class ParserAutoupdateScheduler:
         """
         if self._task and not self._task.done():
             return
+
+        self._should_stop = False  # Reset stop flag
 
         try:
             # Try to acquire distributed lock
@@ -97,6 +100,9 @@ class ParserAutoupdateScheduler:
 
     async def stop(self) -> None:
         """Stop scheduler and release lock."""
+        # Signal graceful shutdown
+        self._should_stop = True
+
         # Stop lock extension
         if self._lock_extend_task:
             self._lock_extend_task.cancel()
@@ -136,24 +142,30 @@ class ParserAutoupdateScheduler:
             return
 
         try:
-            while True:
+            while not self._should_stop:
                 # Extend lock every TTL/2 seconds
                 await asyncio.sleep(SCHEDULER_LOCK_TTL / 2)
+                if self._should_stop:
+                    break
                 if not await self._lock.extend():
-                    logger.error("Failed to extend scheduler lock - stopping scheduler")
-                    # Stop main task if lock extension fails
-                    if self._task and not self._task.done():
-                        self._task.cancel()
+                    logger.error("Failed to extend scheduler lock - signaling shutdown")
+                    # Signal graceful shutdown instead of canceling
+                    self._should_stop = True
                     break
         except asyncio.CancelledError:
             return
 
     async def _loop(self) -> None:
         """Main scheduler loop."""
-        while True:
+        while not self._should_stop:
             result = await self.run_once()
             interval = int(result.get("interval_minutes") or DEFAULT_INTERVAL_MINUTES)
-            await asyncio.sleep(interval * 60)
+            
+            # Sleep in small chunks to allow graceful shutdown
+            for _ in range(interval * 60):
+                if self._should_stop:
+                    break
+                await asyncio.sleep(1)
 
 
 parser_autoupdate_scheduler = ParserAutoupdateScheduler()
