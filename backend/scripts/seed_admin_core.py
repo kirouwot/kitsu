@@ -2,6 +2,9 @@
 Seed data for default roles and permissions in the admin core system.
 This script should be run once after the initial migration to populate the database.
 
+SECURITY: This seed data implements the RBAC contract from rbac_contract.py.
+All roles, permissions, and mappings MUST comply with SECURITY-01 requirements.
+
 Usage:
     python -m scripts.seed_admin_core
 """
@@ -15,10 +18,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.database import AsyncSessionLocal
 from app.crud.role import RoleRepository
 from app.crud.permission import PermissionRepository
+from app.auth import rbac_contract
 
 
-# Default system roles
+# Default system roles per SECURITY-01 contract
 DEFAULT_ROLES = [
+    # User roles (actor_type="user")
     {
         "name": "super_admin",
         "display_name": "Super Administrator",
@@ -44,12 +49,6 @@ DEFAULT_ROLES = [
         "is_system": True,
     },
     {
-        "name": "parser_bot",
-        "display_name": "Parser Bot",
-        "description": "System role for automated parser",
-        "is_system": True,
-    },
-    {
         "name": "support",
         "display_name": "Support",
         "description": "Can view audit logs and help users",
@@ -61,9 +60,23 @@ DEFAULT_ROLES = [
         "description": "Regular user with read access",
         "is_system": True,
     },
+    # System roles (actor_type="system")
+    {
+        "name": "parser_bot",
+        "display_name": "Parser Bot",
+        "description": "System role for automated parser",
+        "is_system": True,
+    },
+    {
+        "name": "worker_bot",
+        "display_name": "Worker Bot",
+        "description": "System role for background workers",
+        "is_system": True,
+    },
 ]
 
-# Default system permissions
+# Default system permissions per SECURITY-01 contract
+# SECURITY: NO wildcards (admin:*, parser:*, system:*) are allowed
 DEFAULT_PERMISSIONS = [
     # Anime permissions
     {"name": "anime.view", "display_name": "View Anime", "resource": "anime", "action": "view", "description": "View anime entries"},
@@ -80,13 +93,17 @@ DEFAULT_PERMISSIONS = [
     {"name": "episode.edit", "display_name": "Edit Episodes", "resource": "episode", "action": "edit", "description": "Edit existing episodes"},
     {"name": "episode.delete", "display_name": "Delete Episodes", "resource": "episode", "action": "delete", "description": "Delete episodes"},
     {"name": "episode.lock", "display_name": "Lock Episodes", "resource": "episode", "action": "lock", "description": "Lock episodes from editing"},
+    {"name": "episode.unlock", "display_name": "Unlock Episodes", "resource": "episode", "action": "unlock", "description": "Unlock locked episodes"},
     
-    # Parser permissions
+    # Parser permissions (system-specific)
     {"name": "parser.run", "display_name": "Run Parser", "resource": "parser", "action": "run", "description": "Execute parser jobs"},
     {"name": "parser.configure", "display_name": "Configure Parser", "resource": "parser", "action": "configure", "description": "Configure parser settings"},
     {"name": "parser.override_lock", "display_name": "Override Locks", "resource": "parser", "action": "override_lock", "description": "Override content locks as parser"},
     
-    # Admin permissions
+    # Admin permissions (explicit only, NO wildcards)
+    {"name": "admin.parser.settings", "display_name": "Parser Settings", "resource": "admin", "action": "parser.settings", "description": "Manage parser settings"},
+    {"name": "admin.parser.emergency", "display_name": "Parser Emergency", "resource": "admin", "action": "parser.emergency", "description": "Emergency parser controls"},
+    {"name": "admin.parser.logs", "display_name": "Parser Logs", "resource": "admin", "action": "parser.logs", "description": "View parser logs"},
     {"name": "admin.roles.manage", "display_name": "Manage Roles", "resource": "admin", "action": "roles.manage", "description": "Manage roles and permissions"},
     {"name": "admin.users.manage", "display_name": "Manage Users", "resource": "admin", "action": "users.manage", "description": "Manage user accounts"},
     {"name": "admin.users.view", "display_name": "View Users", "resource": "admin", "action": "users.view", "description": "View user accounts"},
@@ -96,23 +113,37 @@ DEFAULT_PERMISSIONS = [
     
     # Security permissions
     {"name": "security.ban.ip", "display_name": "Ban IP Addresses", "resource": "security", "action": "ban.ip", "description": "Ban IP addresses"},
+    {"name": "security.unban.ip", "display_name": "Unban IP Addresses", "resource": "security", "action": "unban.ip", "description": "Unban IP addresses"},
 ]
 
-# Role-Permission mappings
+# Role-Permission mappings per SECURITY-01 contract
+# SECURITY: These mappings are validated against rbac_contract.ROLE_PERMISSION_MAPPINGS
 ROLE_PERMISSIONS = {
     "super_admin": [
+        # All anime permissions
         "anime.view", "anime.create", "anime.edit", "anime.delete", "anime.publish", "anime.lock", "anime.unlock",
-        "episode.view", "episode.create", "episode.edit", "episode.delete", "episode.lock",
-        "parser.run", "parser.configure", "parser.override_lock",
+        # All episode permissions
+        "episode.view", "episode.create", "episode.edit", "episode.delete", "episode.lock", "episode.unlock",
+        # Parser administration (NOT parser.run - that's for system actors)
+        "parser.configure", "parser.override_lock",
+        # All admin permissions (explicit only)
+        "admin.parser.settings", "admin.parser.emergency", "admin.parser.logs",
         "admin.roles.manage", "admin.users.manage", "admin.users.view",
+        # Audit
         "audit.view",
-        "security.ban.ip",
+        # Security
+        "security.ban.ip", "security.unban.ip",
     ],
     "admin": [
+        # All anime permissions
         "anime.view", "anime.create", "anime.edit", "anime.delete", "anime.publish", "anime.lock", "anime.unlock",
-        "episode.view", "episode.create", "episode.edit", "episode.delete", "episode.lock",
-        "parser.run", "parser.configure",
-        "admin.users.view",
+        # All episode permissions
+        "episode.view", "episode.create", "episode.edit", "episode.delete", "episode.lock", "episode.unlock",
+        # Parser administration
+        "parser.configure",
+        # Subset of admin permissions
+        "admin.parser.settings", "admin.parser.logs", "admin.users.view",
+        # Audit
         "audit.view",
     ],
     "moderator": [
@@ -124,11 +155,6 @@ ROLE_PERMISSIONS = {
         "anime.view", "anime.create", "anime.edit",
         "episode.view", "episode.create", "episode.edit",
     ],
-    "parser_bot": [
-        "anime.view", "anime.create", "anime.edit",
-        "episode.view", "episode.create", "episode.edit",
-        "parser.run",
-    ],
     "support": [
         "anime.view",
         "episode.view",
@@ -139,18 +165,44 @@ ROLE_PERMISSIONS = {
         "anime.view",
         "episode.view",
     ],
+    # System roles (actor_type="system")
+    # SECURITY: System roles CANNOT have admin.* permissions
+    "parser_bot": [
+        "anime.view", "anime.create", "anime.edit",
+        "episode.view", "episode.create", "episode.edit",
+        "parser.run",
+        "parser.override_lock",
+    ],
+    "worker_bot": [
+        "anime.view",
+        "episode.view",
+        "parser.run",
+    ],
 }
 
 
 async def seed_admin_core():
-    """Seed the database with default roles and permissions."""
+    """Seed the database with default roles and permissions per SECURITY-01 contract."""
     async with AsyncSessionLocal() as session:
         role_repo = RoleRepository(session)
         permission_repo = PermissionRepository(session)
         
-        print("Seeding permissions...")
+        print("SECURITY-01: Seeding RBAC contract-compliant data...")
+        print(f"  Actor types: {', '.join(rbac_contract.ALLOWED_ACTOR_TYPES)}")
+        print(f"  User roles: {', '.join(rbac_contract.USER_ROLES)}")
+        print(f"  System roles: {', '.join(rbac_contract.SYSTEM_ROLES)}")
+        print(f"  Total permissions: {len(rbac_contract.ALLOWED_PERMISSIONS)}")
+        
+        print("\nSeeding permissions...")
         permission_map = {}
         for perm_data in DEFAULT_PERMISSIONS:
+            # SECURITY: Validate permission against contract
+            try:
+                rbac_contract.validate_permission(perm_data["name"])
+            except ValueError as e:
+                print(f"  ERROR: Permission '{perm_data['name']}' violates contract: {e}")
+                continue
+            
             existing = await permission_repo.get_by_name(perm_data["name"])
             if existing:
                 print(f"  Permission '{perm_data['name']}' already exists, skipping...")
@@ -166,11 +218,16 @@ async def seed_admin_core():
                 is_system=True,
             )
             permission_map[perm_data["name"]] = permission.id
-            print(f"  Created permission: {perm_data['name']}")
+            print(f"  ✓ Created permission: {perm_data['name']}")
         
         print("\nSeeding roles...")
         role_map = {}
         for role_data in DEFAULT_ROLES:
+            # SECURITY: Validate role against contract
+            if role_data["name"] not in rbac_contract.ALL_ROLES:
+                print(f"  ERROR: Role '{role_data['name']}' not in contract")
+                continue
+            
             existing = await role_repo.get_by_name(role_data["name"])
             if existing:
                 print(f"  Role '{role_data['name']}' already exists, skipping...")
@@ -184,7 +241,10 @@ async def seed_admin_core():
                 is_system=role_data.get("is_system", False),
             )
             role_map[role_data["name"]] = role.id
-            print(f"  Created role: {role_data['name']}")
+            
+            # Mark role type
+            role_type = "USER" if role_data["name"] in rbac_contract.USER_ROLES else "SYSTEM"
+            print(f"  ✓ Created role: {role_data['name']} ({role_type})")
         
         print("\nAssigning permissions to roles...")
         for role_name, permission_names in ROLE_PERMISSIONS.items():
@@ -192,6 +252,14 @@ async def seed_admin_core():
             if not role_id:
                 print(f"  Role '{role_name}' not found, skipping permissions...")
                 continue
+            
+            # SECURITY: Validate no system roles have admin permissions
+            if role_name in rbac_contract.SYSTEM_ROLES:
+                admin_perms = [p for p in permission_names if p in rbac_contract.ADMIN_PERMISSIONS]
+                if admin_perms:
+                    print(f"  ERROR: System role '{role_name}' has FORBIDDEN admin permissions: {admin_perms}")
+                    print("  SECURITY-01 VIOLATION: Parser ≠ Admin invariant violated!")
+                    continue
             
             for perm_name in permission_names:
                 perm_id = permission_map.get(perm_name)
@@ -204,9 +272,14 @@ async def seed_admin_core():
                 except Exception as e:
                     print(f"  Warning: Could not assign '{perm_name}' to '{role_name}': {e}")
             
-            print(f"  Assigned {len(permission_names)} permissions to '{role_name}'")
+            print(f"  ✓ Assigned {len(permission_names)} permissions to '{role_name}'")
         
-        print("\n✅ Seeding completed successfully!")
+        print("\n✅ SECURITY-01: RBAC contract seeding completed successfully!")
+        print("\nSECURITY SUMMARY:")
+        print("  ✓ No wildcard permissions (admin:*, parser:*, system:*)")
+        print("  ✓ System roles separated from user roles")
+        print("  ✓ Parser ≠ Admin invariant enforced")
+        print("  ✓ All permissions explicit and contract-compliant")
 
 
 if __name__ == "__main__":

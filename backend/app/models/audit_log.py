@@ -1,9 +1,9 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import JSON, DateTime, ForeignKey, String, Text, func
+from sqlalchemy import CheckConstraint, JSON, DateTime, ForeignKey, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, validates
 
 from .base import Base
 
@@ -22,7 +22,7 @@ class AuditLog(Base):
     )
     actor_type: Mapped[str] = mapped_column(
         String(50), nullable=False, index=True
-    )  # 'user' or 'system'
+    )  # SECURITY: Only 'user', 'system', or 'anonymous' allowed
     action: Mapped[str] = mapped_column(
         String(100), nullable=False, index=True
     )  # e.g., 'anime.edit', 'episode.delete'
@@ -40,3 +40,37 @@ class AuditLog(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
     )
+
+    # SECURITY: Database-level constraint to enforce allowed actor_type values
+    __table_args__ = (
+        CheckConstraint(
+            "actor_type IN ('user', 'system', 'anonymous')",
+            name="valid_actor_type"
+        ),
+    )
+
+    @validates("actor_type")
+    def validate_actor_type(self, key: str, value: str) -> str:
+        """
+        SECURITY: Validate actor_type at ORM level to prevent spoofing.
+        
+        Per SECURITY-01 contract: only 'user', 'system', 'anonymous' are allowed.
+        This prevents privilege escalation through actor_type manipulation.
+        
+        Args:
+            key: The attribute name (always 'actor_type')
+            value: The proposed actor_type value
+            
+        Returns:
+            str: The validated actor_type
+            
+        Raises:
+            ValueError: If actor_type is not in the allowed set
+        """
+        allowed = {"user", "system", "anonymous"}
+        if value not in allowed:
+            raise ValueError(
+                f"Invalid actor_type '{value}'. "
+                f"Must be one of: {', '.join(sorted(allowed))}"
+            )
+        return value
