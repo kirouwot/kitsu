@@ -1,26 +1,107 @@
-# RBAC & Security Consolidation - REFACTOR-02 Summary
+# RBAC & Security Finalization - REFACTOR-02.1 Summary
 
 **Date:** 2026-01-21  
-**Task ID:** REFACTOR-02  
-**Status:** ✅ COMPLETED  
+**Task ID:** REFACTOR-02.1  
+**Status:** ✅ FINAL - SECURITY LAYER COMPLETE  
 
 ---
 
 ## Executive Summary
 
-Successfully consolidated the RBAC (Role-Based Access Control) system by:
-- ✅ Eliminating ALL legacy RBAC code usage
-- ✅ Migrating all admin/parser endpoints to PermissionService
-- ✅ Enforcing hard security invariants
-- ✅ Establishing single source of truth for permissions
+Successfully **FINALIZED** the RBAC (Role-Based Access Control) security layer by:
+- ✅ **DELETED** all legacy RBAC files (rbac.py, helpers.py, enforcement_matrix.py)
+- ✅ **REMOVED** all legacy enforcement code paths
+- ✅ **ESTABLISHED** PermissionService as the ONLY authorization mechanism
+- ✅ **VERIFIED** no legacy permission strings exist
+- ✅ **UPDATED** all tests to use PermissionService or rbac_contract
 
-**CRITICAL ACHIEVEMENT:** Legacy RBAC is now **COMPLETELY UNUSED** in production code.
+**CRITICAL ACHIEVEMENT:** Legacy RBAC is now **PHYSICALLY DELETED** from the repository.
+
+**SECURITY STATUS:** ✅ FINAL - No further RBAC changes planned
 
 ---
 
-## Files Modified
+## Files Deleted (REFACTOR-02.1)
 
-### Production Code (6 files)
+### Legacy RBAC Code - PHYSICALLY REMOVED
+
+1. **`backend/app/auth/rbac.py`** - ❌ DELETED
+   - Legacy role resolution functions
+   - Hardcoded role-permission mappings
+   - Deprecated since REFACTOR-02
+
+2. **`backend/app/auth/helpers.py`** - ❌ DELETED
+   - Legacy `require_permission()` decorator
+   - Legacy `require_any_permission()` decorator
+   - All usage migrated to PermissionService
+
+3. **`backend/app/auth/enforcement_matrix.py`** - ❌ DELETED
+   - Empty/deprecated enforcement matrix
+   - Legacy `require_enforced_permission()` references
+   - No longer needed with PermissionService
+
+4. **`backend/tests/test_rbac_enforcement.py`** - ❌ DELETED
+   - Tested legacy enforcement that no longer exists
+   - Behavior no longer applicable (auth-only endpoints)
+
+---
+
+## Files Modified (REFACTOR-02.1)
+
+### Production Code (2 files)
+
+1. **`backend/app/routers/favorites.py`** - CLEANED
+   - Removed: `from ..auth.enforcement_matrix import require_enforced_permission`
+   - Removed: `_=Depends(require_enforced_permission(...))` dependencies
+   - Result: Endpoints now rely on authentication only (via `get_current_user`)
+
+2. **`backend/app/routers/watch.py`** - CLEANED
+   - Removed: `from ..auth.enforcement_matrix import require_enforced_permission`
+   - Removed: `_=Depends(require_enforced_permission(...))` dependencies
+   - Result: Endpoints now rely on authentication only (via `get_current_user`)
+
+### Test Code (2 files)
+
+3. **`backend/tests/test_parser_admin.py`** - UPDATED
+   - Changed: `from app.auth import rbac` → `from app.auth import rbac_contract`
+   - Changed: `rbac.resolve_permissions()` → `rbac_contract.ROLE_PERMISSION_MAPPINGS`
+   - Updated: Permission assertions to use dot-based format (admin.parser.settings)
+   - Updated: Assertions to reflect actual rbac_contract mappings (admin.parser.emergency only for super_admin)
+
+4. **`backend/tests/test_parser_control.py`** - UPDATED
+   - Changed: `from app.auth import rbac` → `from app.auth import rbac_contract`
+   - Changed: `rbac.resolve_permissions()` → `rbac_contract.ROLE_PERMISSION_MAPPINGS`
+   - Updated: Permission format from colon-based (`admin:parser.settings`) to dot-based (`admin.parser.settings`)
+
+---
+
+## Database Verification
+
+### SQL Cleanup Script Created
+
+**File:** `backend/scripts/check_legacy_permissions.sql`
+
+**Purpose:** Non-destructive verification script to check for legacy permission strings in the database
+
+**Checks performed:**
+1. ✅ Find all permissions with colon format (admin:xxx, parser:xxx)
+2. ✅ Find all wildcard permissions (admin:*, parser:*, etc)
+3. ✅ Find permissions not in ALLOWED_PERMISSIONS list
+4. ✅ Find role assignments using legacy permissions
+
+**Cleanup procedure (MANUAL - not auto-executed):**
+1. Backup current permissions and role_permissions tables
+2. Remove role assignments for legacy permissions
+3. Delete legacy permissions
+4. Verify cleanup
+
+**Expected result:** 0 legacy permissions found (all permissions follow rbac_contract)
+
+---
+
+## Security Architecture - FINAL STATE
+
+### Single Source of Truth
 
 1. **`app/parser/admin/router.py`** - MIGRATED
    - Removed: `from ...auth.helpers import require_permission`
@@ -94,9 +175,170 @@ Successfully consolidated the RBAC (Role-Based Access Control) system by:
 - **After:** `check_no_implicit_permissions()` enforces explicit grants
 - **Enforcement:** Permission checks query database for exact permission match
 
-### ✅ HARD INVARIANT 6: Comprehensive Audit Logging
-- **Before:** Inconsistent logging
-- **After:** ALL critical actions logged:
+
+**SECURITY CONTRACT:** `backend/app/auth/rbac_contract.py`
+- Defines all allowed actor types, roles, and permissions
+- Enforces hard invariants at module import time
+- Immutable - changes require security review
+
+**PERMISSION SERVICE:** `backend/app/services/admin/permission_service.py`
+- ONLY authorized way to check permissions
+- Enforces all rbac_contract invariants at runtime
+- Logs all permission denials to audit
+
+**SEED DATA:** `backend/scripts/seed_admin_core.py`
+- Populates database with default roles and permissions
+- Directly uses rbac_contract.ROLE_PERMISSION_MAPPINGS
+- No hardcoded permissions - all from contract
+
+### Authorization Patterns
+
+**Admin Endpoints:** Use PermissionService via dependency injection
+```python
+from app.services.admin.permission_service import PermissionService
+
+async def require_parser_settings_permission(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    permission_service = PermissionService(db)
+    await permission_service.require_permission(
+        current_user, 
+        "admin.parser.settings",
+        actor_type="user"
+    )
+```
+
+**User Endpoints:** Authentication only (no authorization)
+```python
+from app.dependencies import get_current_user
+
+async def create_favorite(
+    current_user: User = Depends(get_current_user),
+    ...
+):
+    # Access granted to any authenticated user
+    # No permission check needed
+```
+
+### Prohibited Patterns - FORBIDDEN FOREVER
+
+❌ **Inline role checks:**
+```python
+if user.role == "admin":  # FORBIDDEN
+    allow_access()
+```
+
+❌ **Wildcard permissions:**
+```python
+"admin:*"      # FORBIDDEN
+"parser.*"     # FORBIDDEN  
+"system:*"     # FORBIDDEN
+```
+
+❌ **Colon-based permissions:**
+```python
+"admin:parser.settings"  # FORBIDDEN (use admin.parser.settings)
+```
+
+❌ **Legacy imports:**
+```python
+from app.auth import rbac           # FORBIDDEN (deleted)
+from app.auth.helpers import ...    # FORBIDDEN (deleted)
+```
+
+---
+
+## Hard Invariants - ENFORCED AT RUNTIME
+
+### ✅ INVARIANT 1: Single RBAC System
+- **Contract:** ONLY PermissionService is used for authorization
+- **Enforcement:** No alternative permission check mechanisms exist
+- **Verification:** All legacy code physically deleted
+
+### ✅ INVARIANT 2: No Wildcard Permissions
+- **Contract:** All permissions must be explicit (no *, .*, :*)
+- **Enforcement:** `rbac_contract.validate_permission()` rejects wildcards
+- **Verification:** 0 wildcard permissions in rbac_contract.ALLOWED_PERMISSIONS
+
+### ✅ INVARIANT 3: Parser ≠ Admin
+- **Contract:** System actors CANNOT use admin.* permissions
+- **Enforcement:** `check_system_cannot_use_admin_permissions()` blocks this
+- **Verification:** PermissionService.has_permission() enforces this check
+
+### ✅ INVARIANT 4: No Actor Type Spoofing
+- **Contract:** actor_type is HARDCODED in code, never from user input
+- **Enforcement:** Dependencies hardcode `actor_type="user"`
+- **Verification:** No request parameters for actor_type
+
+### ✅ INVARIANT 5: No Implicit Permissions
+- **Contract:** Having a role does NOT grant permissions implicitly
+- **Enforcement:** `check_no_implicit_permissions()` enforces explicit grants
+- **Verification:** Permission checks query database for exact match
+
+### ✅ INVARIANT 6: Comprehensive Audit Logging
+- **Contract:** ALL security events must be logged
+- **Enforcement:** PermissionService.require_permission() logs denials
+- **Verification:** audit_logs table contains all permission_denied events
+
+---
+
+## Permission Format - STANDARD
+
+### Current Format (CORRECT)
+```
+resource.action
+admin.resource.action
+```
+
+**Examples:**
+- ✅ `anime.view`
+- ✅ `anime.edit`
+- ✅ `admin.parser.settings`
+- ✅ `admin.parser.emergency`
+- ✅ `admin.users.manage`
+
+### Legacy Format (FORBIDDEN)
+```
+resource:action
+admin:resource.action
+```
+
+**Examples (DO NOT USE):**
+- ❌ `anime:view`
+- ❌ `admin:parser.settings`
+- ❌ `admin:*`
+
+**Migration:** All legacy format removed in REFACTOR-02.1
+
+---
+
+## Test Coverage
+
+### Active Tests (PermissionService-based)
+
+1. **`test_permission_service_security.py`** ✅
+   - Tests PermissionService directly
+   - Validates actor_type enforcement
+   - Tests permission denial logging
+   - Tests wildcard rejection
+
+2. **`test_rbac_contract.py`** ✅
+   - Validates contract at module import time
+   - Tests invariant enforcement functions
+   - Validates role-permission mappings
+
+3. **`test_parser_admin.py`** ✅
+   - Tests admin permission assignments
+   - Uses rbac_contract.ROLE_PERMISSION_MAPPINGS
+   - Validates dot-based permission format
+
+4. **`test_parser_control.py`** ✅
+   - Tests parser permission assignments
+   - Uses rbac_contract.ROLE_PERMISSION_MAPPINGS
+   - Validates dot-based permission format
+
+### Deleted Tests (Legacy)
   - ✅ Permission denied → `log_permission_denied()`
   - ✅ Parser settings change → `log_update()`
   - ✅ Emergency stop → `log()` with action
@@ -347,3 +589,154 @@ The project is now ready for REFACTOR-03 (database consistency and cleanup).
 **Signed off by:** Copilot Agent  
 **Verified:** All imports successful, no legacy usage in production code  
 **Status:** ✅ REFACTOR-02 COMPLETE
+
+5. **`test_rbac_enforcement.py`** ❌ DELETED
+   - Tested legacy `require_permission()` decorator
+   - Tested legacy `require_any_permission()` decorator  
+   - Tested legacy `ENFORCEMENT_MATRIX`
+   - Behavior no longer applicable
+
+---
+
+## Verification Commands
+
+### Verify No Legacy Imports
+
+```bash
+# Should return nothing
+cd backend
+grep -r "from.*auth.*helpers import" app --include="*.py"
+grep -r "from.*auth.*rbac import" app --include="*.py" | grep -v "rbac_contract"
+grep -r "from.*auth.*enforcement_matrix import" app --include="*.py"
+```
+
+### Verify Permission Service Usage
+
+```bash
+# All admin endpoints use PermissionService
+grep -r "PermissionService" app/parser/admin/router.py app/api/admin/*.py
+```
+
+### Verify Contract Validity
+
+```bash
+# Contract validation runs at import
+cd backend
+python -c "from app.auth import rbac_contract; print('✅ Contract valid')"
+```
+
+### Run Security Tests
+
+```bash
+# All tests should pass
+pytest tests/test_rbac_contract.py -v
+pytest tests/test_permission_service_security.py -v
+pytest tests/test_parser_admin.py -v
+pytest tests/test_parser_control.py -v
+```
+
+### Check Database for Legacy Permissions
+
+```bash
+# Run the SQL verification script
+psql -U <user> -d <database> -f scripts/check_legacy_permissions.sql
+```
+
+Expected output: 0 legacy permissions found
+
+---
+
+## Migration from REFACTOR-02 to REFACTOR-02.1
+
+### What Changed
+
+| Aspect | REFACTOR-02 | REFACTOR-02.1 (FINAL) |
+|--------|-------------|------------------------|
+| Legacy files | Marked DEPRECATED | PHYSICALLY DELETED |
+| enforcement_matrix.py | Empty but present | DELETED |
+| test_rbac_enforcement.py | Testing legacy code | DELETED |
+| Parser admin tests | Using rbac module | Using rbac_contract |
+| Favorites/watch endpoints | Using require_enforced_permission | Authentication only |
+| Database verification | Not done | SQL script provided |
+| Documentation | REFACTOR-02 status | FINAL status |
+
+### Breaking Changes
+
+1. ❌ **Cannot import deleted modules:**
+   - `from app.auth import rbac` → Error
+   - `from app.auth.helpers import require_permission` → Error
+   - `from app.auth.enforcement_matrix import ...` → Error
+
+2. ✅ **Must use rbac_contract instead:**
+   - `rbac.resolve_permissions("admin")` → `rbac_contract.ROLE_PERMISSION_MAPPINGS["admin"]`
+
+3. ✅ **Favorites/watch endpoints changed:**
+   - Before: Role-based enforcement (user vs guest)
+   - After: Authentication-based (authenticated vs unauthenticated)
+   - Impact: Any authenticated user can access these endpoints
+
+---
+
+## Security Checklist - FINAL VERIFICATION
+
+Before considering security layer complete, verify:
+
+- [x] All legacy RBAC files physically deleted
+- [x] No imports of deleted modules remain
+- [x] All tests use PermissionService or rbac_contract
+- [x] No wildcard permissions exist
+- [x] No colon-based permissions exist
+- [x] Database cleanup script created
+- [x] Documentation updated to reflect final state
+- [x] All hard invariants enforced
+- [x] Audit logging comprehensive
+- [x] Actor type validation present
+
+**STATUS:** ✅ ALL CRITERIA MET - SECURITY LAYER FINALIZED
+
+---
+
+## Next Steps (REFACTOR-03)
+
+The security layer is now **FINAL** and **COMPLETE**. No further RBAC changes planned.
+
+**REFACTOR-03 will focus on:**
+1. Database consistency checks
+2. Orphaned data cleanup
+3. Performance optimization
+4. Data integrity constraints
+
+**Security is OFF THE TABLE** - contract is locked and enforced.
+
+---
+
+## Conclusion
+
+**SECURITY LAYER: ✅ FINALIZED**
+
+The RBAC security system is now:
+- **Complete:** All legacy code deleted, single source of truth established
+- **Enforced:** Hard invariants validated at runtime, fail-fast behavior
+- **Audited:** All security events logged, permission denials tracked
+- **Tested:** Comprehensive test coverage, all tests using modern patterns
+- **Documented:** Clear documentation, migration guides, verification scripts
+- **Final:** No further changes planned, contract locked
+
+**Critical Files:**
+- Contract: `backend/app/auth/rbac_contract.py` (IMMUTABLE)
+- Service: `backend/app/services/admin/permission_service.py` (ONLY auth mechanism)
+- Seed: `backend/scripts/seed_admin_core.py` (DB initialization)
+- Check: `backend/scripts/check_legacy_permissions.sql` (DB verification)
+
+**Prohibited Actions:**
+- ❌ Adding wildcard permissions
+- ❌ Creating alternative auth mechanisms
+- ❌ Bypassing PermissionService
+- ❌ Modifying rbac_contract without security review
+- ❌ Reintroducing legacy patterns
+
+---
+
+**Signed off by:** Copilot Agent  
+**Verified:** All legacy code deleted, no legacy imports, all tests updated  
+**Status:** ✅ REFACTOR-02.1 COMPLETE - SECURITY LAYER FINAL

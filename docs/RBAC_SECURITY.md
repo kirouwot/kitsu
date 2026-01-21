@@ -1,8 +1,16 @@
-# RBAC Security Model (SECURITY-01)
+# RBAC Security Model (SECURITY-01) - FINALIZED
+
+**Status:** ✅ FINAL (REFACTOR-02.1 Complete)  
+**Last Updated:** 2026-01-21  
+**Legacy Code:** ❌ DELETED (rbac.py, helpers.py, enforcement_matrix.py)
+
+---
 
 ## Overview
 
 This document describes the hardened Role-Based Access Control (RBAC) security model implemented in the Kitsu backend. This is a **hard contract**, not a convention. All security invariants are enforced at runtime with fail-fast behavior.
+
+**CRITICAL:** As of REFACTOR-02.1, all legacy RBAC code has been **physically deleted** from the repository. The security layer is **FINAL** and no further changes are planned.
 
 ## Security Goals
 
@@ -252,24 +260,80 @@ When adding new features:
 
 ## Migration Guide
 
-### Replacing Legacy Code
+### Replacing Legacy Code (REFACTOR-02.1)
 
-**Before (INSECURE)**:
+**IMPORTANT:** Legacy code has been DELETED. The patterns below are for historical reference only.
+
+**Legacy Code (DELETED - DO NOT USE)**:
 ```python
-# Wildcard permission
-if "admin:*" in user_permissions:
-    allow_access()
+# ❌ DELETED - These imports will fail
+from app.auth import rbac
+from app.auth.helpers import require_permission
 
-# Inline role check
+# ❌ DELETED - These functions don't exist
+admin_perms = rbac.resolve_permissions("admin")
+checker = require_permission("admin:parser.settings")
+
+# ❌ DELETED - This pattern is gone
 if user.role == "admin":
     allow_access()
 ```
 
-**After (SECURE)**:
+**Modern Pattern (CORRECT)**:
 ```python
-# Explicit permission through service
-if await permission_service.has_permission(user, "admin.parser.settings"):
+# ✅ Use rbac_contract for permission definitions
+from app.auth import rbac_contract
+
+# ✅ Use PermissionService for runtime checks
+from app.services.admin.permission_service import PermissionService
+
+# ✅ Check permissions through service
+permission_service = PermissionService(db)
+if await permission_service.has_permission(user, "admin.parser.settings", actor_type="user"):
     allow_access()
+```
+
+### User Endpoints (Authentication Only)
+
+For non-admin endpoints (favorites, watch progress), use authentication only:
+
+```python
+from app.dependencies import get_current_user
+
+@router.post("/favorites/")
+async def create_favorite(
+    current_user: User = Depends(get_current_user),  # Authentication only
+    ...
+):
+    # Any authenticated user can create favorites
+    # No permission check needed
+```
+
+### Admin Endpoints (Permission-Based)
+
+For admin endpoints, use PermissionService via dependency:
+
+```python
+from app.services.admin.permission_service import PermissionService
+from app.dependencies import get_current_user, get_db
+
+async def require_parser_settings_permission(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    permission_service = PermissionService(db)
+    await permission_service.require_permission(
+        current_user,
+        "admin.parser.settings",
+        actor_type="user"
+    )
+
+@router.post("/admin/parser/settings")
+async def update_settings(
+    _=Depends(require_parser_settings_permission),
+    ...
+):
+    # Only users with admin.parser.settings permission
 ```
 
 ## Contract Modification Policy
