@@ -25,7 +25,7 @@ from ..dependencies import get_db, get_current_user
 from ..models.user import User
 from ..services.admin.permission_service import PermissionService
 from .audit import log_admin_action
-from .dependencies import require_permissions
+from .dependencies import require_permissions, get_admin_user
 from .permissions import AdminPermission, AdminRole, get_admin_permissions
 
 # Create admin infrastructure router
@@ -39,29 +39,20 @@ router = APIRouter(
 @router.get("/health")
 async def admin_health(
     request: Request,
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_db),
-    _: None = Depends(require_permissions(AdminPermission.PARSER_LOGS)),
+    current_user: User = Depends(get_admin_user),
 ) -> dict[str, str]:
     """
     Admin health check endpoint.
     
-    Requires: admin.parser.logs permission
+    Requires: Any admin permission (verified by get_admin_user)
     
-    Returns basic status and logs the access.
+    Returns basic status to confirm admin access is working.
+    This endpoint is useful for verifying admin RBAC infrastructure.
     """
-    # Log admin access
-    await log_admin_action(
-        action="admin.health_check",
-        endpoint=str(request.url.path),
-        actor=current_user,
-        ip_address=request.client.host if request.client else None,
-        user_agent=request.headers.get("user-agent"),
-    )
-    
     return {
         "status": "ok",
-        "message": "Admin RBAC infrastructure is operational"
+        "message": "Admin RBAC infrastructure is operational",
+        "user_id": str(current_user.id),
     }
 
 
@@ -98,7 +89,7 @@ async def get_role_permissions(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
     _: None = Depends(require_permissions(AdminPermission.ROLES_MANAGE)),
-) -> dict[str, object]:
+) -> dict[str, str | list[str] | int]:
     """
     Get admin permissions for a specific role.
     

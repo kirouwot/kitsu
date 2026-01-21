@@ -156,7 +156,9 @@ class AdminAuditLogger:
             **kwargs: Additional fields to log
         """
         # Run in executor to avoid blocking
-        loop = asyncio.get_event_loop()
+        # NOTE: Requires Python 3.12+ (per pyproject.toml requires-python >= 3.12)
+        # get_running_loop() is the correct API for Python 3.10+
+        loop = asyncio.get_running_loop()
         await loop.run_in_executor(
             None,
             self._write_log,

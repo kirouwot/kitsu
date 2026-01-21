@@ -109,9 +109,11 @@ async def get_admin_user(
     # Get user permissions
     user_permissions = await permission_service.get_user_permissions(current_user.id)
     
-    # Check if user has any admin.* permission
+    # Check if user has any admin permission from the allowed set
+    # SECURITY: Validate against explicit admin permissions from contract
+    from ..auth import rbac_contract
     has_admin_permission = any(
-        perm.startswith("admin.") for perm in user_permissions
+        perm in rbac_contract.ADMIN_PERMISSIONS for perm in user_permissions
     )
     
     if not has_admin_permission:
