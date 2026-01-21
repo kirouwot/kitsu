@@ -1,3 +1,4 @@
+import logging
 import uuid
 from datetime import datetime, timezone
 
@@ -9,6 +10,8 @@ from ...domain.ports.watch_progress import (
 )
 from ...errors import NotFoundError, ValidationError
 from ...schemas.watch import WatchProgressRead
+
+logger = logging.getLogger(__name__)
 
 
 def _validate_update_request(
@@ -48,12 +51,37 @@ async def _apply_watch_progress(
     created_at: datetime,
     last_watched_at: datetime,
 ) -> None:
+    """
+    Apply watch progress update with exactly-once semantics.
+    
+    IDEMPOTENCY KEY: (user_id, anime_id)
+    INVARIANT: Repeated execution either applies effect OR skips deterministically.
+    """
     anime_exists = await get_anime_by_id(watch_repo, anime_id)
     if not anime_exists:
         raise NotFoundError("Anime not found")
 
+    # IDEMPOTENCY CHECK: Get current state before applying effect
     progress = await get_watch_progress(watch_repo, user_id, anime_id)
+    
     if progress:
+        # Check if this exact update was already applied
+        if (
+            progress.episode == episode
+            and progress.position_seconds == position_seconds
+            and progress.progress_percent == progress_percent
+        ):
+            # Effect already applied - idempotent skip
+            logger.info(
+                "idempotent_skip operation=watch-progress user_id=%s anime_id=%s episode=%d "
+                "reason=exact_match_exists",
+                user_id,
+                anime_id,
+                episode,
+            )
+            return
+        
+        # Update existing progress (idempotent via unique constraint)
         await watch_repo.update(
             progress,
             episode,
@@ -61,7 +89,14 @@ async def _apply_watch_progress(
             progress_percent,
             last_watched_at=last_watched_at,
         )
+        logger.info(
+            "operation=watch-progress action=update user_id=%s anime_id=%s episode=%d",
+            user_id,
+            anime_id,
+            episode,
+        )
     else:
+        # Create new progress (idempotent via unique constraint on user_id, anime_id)
         await watch_repo.add(
             user_id,
             anime_id,
@@ -71,6 +106,12 @@ async def _apply_watch_progress(
             progress_id=progress_id,
             created_at=created_at,
             last_watched_at=last_watched_at,
+        )
+        logger.info(
+            "operation=watch-progress action=create user_id=%s anime_id=%s episode=%d",
+            user_id,
+            anime_id,
+            episode,
         )
 
 
