@@ -43,7 +43,6 @@ from .routers import (
     episodes,
     favorites,
     releases,
-    search,
     watch,
 )
 from .utils.health import check_database_connection
@@ -230,8 +229,6 @@ routers = [
 
 for router in routers:
     app.include_router(router)
-
-app.include_router(search.router, tags=["Search"])
 
 SAFE_HTTP_MESSAGES: dict[int, str] = {
     status.HTTP_400_BAD_REQUEST: ValidationError.message,
