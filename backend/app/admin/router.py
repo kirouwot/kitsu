@@ -1,27 +1,199 @@
 """
-Centralized Admin Router (SKELETON ONLY).
+Centralized Admin Router - READ-ONLY endpoints.
 
-This module is a placeholder for future admin endpoints.
-Currently contains no endpoints - this is by design for Phase 3.
+PHASE 5: READ-ONLY admin API with contracts wired.
+All endpoints return mock data without database access or RBAC enforcement.
 
-Future phases will add admin infrastructure endpoints with RBAC protection.
-
-NOTE: No active endpoints in this phase. Empty router skeleton only.
+NOTE: No enforcement in this phase. Mock data only.
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
+from uuid import UUID
+
 from fastapi import APIRouter
 
-# Create empty admin router (no endpoints in Phase 3)
+from app.admin.contracts.parser import ParserStatusRead, ParserJobStatusRead
+from app.admin.contracts.permissions import AdminPermission
+from app.admin.contracts.roles import AdminRoleList, AdminRoleRead
+from app.admin.contracts.system import SystemHealthRead, SystemComponentStatus
+from app.admin.contracts.users import AdminUserList, AdminUserRead, AdminUserShort
+
+# Create admin router with READ-ONLY endpoints
 router = APIRouter(
     prefix="/admin",
     tags=["admin-core"],
 )
 
-# TODO: Future phases will add endpoints:
-# - /admin/health - Admin access verification
-# - /admin/permissions/my - Current user's permissions
-# - /admin/permissions/role/{role} - Role permission lookup
-#
-# Phase 3 (current): Empty router - no endpoints
-# Phase 4 (future): Active admin endpoints with RBAC protection
+
+@router.get("/users", response_model=AdminUserList)
+async def list_users() -> AdminUserList:
+    """
+    List all users (READ-ONLY, mock data).
+    
+    Returns paginated list of users with mock data.
+    No database access, no RBAC enforcement.
+    """
+    # Mock data - no database access
+    mock_users = [
+        AdminUserShort(
+            id=UUID("00000000-0000-0000-0000-000000000001"),
+            email="admin@example.com",
+            is_active=True,
+        ),
+        AdminUserShort(
+            id=UUID("00000000-0000-0000-0000-000000000002"),
+            email="user@example.com",
+            is_active=True,
+        ),
+    ]
+    
+    return AdminUserList(
+        users=mock_users,
+        total=len(mock_users),
+        page=1,
+        page_size=10,
+    )
+
+
+@router.get("/users/{user_id}", response_model=AdminUserRead)
+async def get_user(user_id: UUID) -> AdminUserRead:
+    """
+    Get user details (READ-ONLY, mock data).
+    
+    Returns complete user information with mock data.
+    No database access, no RBAC enforcement.
+    """
+    # Mock data - no database access
+    return AdminUserRead(
+        id=user_id,
+        email="admin@example.com",
+        is_active=True,
+        roles=["admin", "moderator"],
+        created_at=datetime.now(timezone.utc),
+        last_login_at=datetime.now(timezone.utc),
+    )
+
+
+@router.get("/roles", response_model=AdminRoleList)
+async def list_roles() -> AdminRoleList:
+    """
+    List all roles (READ-ONLY, mock data).
+    
+    Returns list of roles with mock data.
+    No database access, no RBAC enforcement.
+    """
+    # Mock data - no database access
+    mock_roles = [
+        AdminRoleRead(
+            id=UUID("00000000-0000-0000-0000-000000000001"),
+            name="admin",
+            display_name="Administrator",
+            permissions=["admin.users.view", "admin.users.manage"],
+            is_system=True,
+            is_active=True,
+            created_at=datetime.now(timezone.utc),
+        ),
+        AdminRoleRead(
+            id=UUID("00000000-0000-0000-0000-000000000002"),
+            name="moderator",
+            display_name="Moderator",
+            permissions=["admin.users.view"],
+            is_system=False,
+            is_active=True,
+            created_at=datetime.now(timezone.utc),
+        ),
+    ]
+    
+    return AdminRoleList(
+        roles=mock_roles,
+        total=len(mock_roles),
+    )
+
+
+@router.get("/permissions", response_model=list[AdminPermission])
+async def list_permissions() -> list[AdminPermission]:
+    """
+    List all permissions (READ-ONLY, mock data).
+    
+    Returns list of all available admin permissions.
+    No database access, no RBAC enforcement.
+    """
+    # Return all available permissions from enum
+    return list(AdminPermission)
+
+
+@router.get("/parser/status", response_model=ParserStatusRead)
+async def get_parser_status() -> ParserStatusRead:
+    """
+    Get parser status (READ-ONLY, mock data).
+    
+    Returns parser system status with mock data.
+    No database access, no RBAC enforcement.
+    """
+    # Mock data - no database access
+    mock_jobs = [
+        ParserJobStatusRead(
+            job_name="anime_scraper",
+            state="idle",
+            last_run_at=datetime.now(timezone.utc),
+            next_run_at=None,
+            last_duration_ms=1500,
+            error=None,
+        ),
+        ParserJobStatusRead(
+            job_name="metadata_updater",
+            state="success",
+            last_run_at=datetime.now(timezone.utc),
+            next_run_at=None,
+            last_duration_ms=2300,
+            error=None,
+        ),
+    ]
+    
+    return ParserStatusRead(
+        is_enabled=True,
+        is_healthy=True,
+        jobs=mock_jobs,
+        last_check_at=datetime.now(timezone.utc),
+    )
+
+
+@router.get("/system/health", response_model=SystemHealthRead)
+async def get_system_health() -> SystemHealthRead:
+    """
+    Get system health (READ-ONLY, mock data).
+    
+    Returns system health status with mock data.
+    No database access, no RBAC enforcement.
+    """
+    # Mock data - no database access
+    mock_components = [
+        SystemComponentStatus(
+            name="database",
+            status="healthy",
+            response_time_ms=15,
+            error=None,
+            details={"connection_pool": "active"},
+        ),
+        SystemComponentStatus(
+            name="redis",
+            status="healthy",
+            response_time_ms=5,
+            error=None,
+            details=None,
+        ),
+        SystemComponentStatus(
+            name="parser",
+            status="healthy",
+            response_time_ms=10,
+            error=None,
+            details=None,
+        ),
+    ]
+    
+    return SystemHealthRead(
+        status="healthy",
+        components=mock_components,
+        checked_at=datetime.now(timezone.utc),
+    )
