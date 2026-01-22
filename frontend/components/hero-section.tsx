@@ -144,7 +144,7 @@ const HeroCarouselItem = ({ anime }: { anime: SpotlightAnime }) => {
               className="gap-2 h-12 md:h-14 px-6 md:px-8 text-base md:text-lg rounded-xl backdrop-blur-sm"
             >
               <Play className="w-5 h-5" fill="currentColor" />
-              Смотреть
+              Watch
             </Button>
             <Button
               size="lg"
