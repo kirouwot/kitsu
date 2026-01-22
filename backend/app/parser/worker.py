@@ -72,6 +72,7 @@ class ParserWorker:
         self._session_maker = session_maker or AsyncSessionLocal
         self._running = False
         self._shutdown_event = asyncio.Event()
+        # ISSUE #9 FIX: Use asyncio.Lock to protect lifecycle state transitions
         self._lifecycle_lock = asyncio.Lock()
         
     async def start(self) -> None:
@@ -80,6 +81,9 @@ class ParserWorker:
         The worker will run indefinitely until shutdown() is called.
         Multiple workers can run, but only one will be active at a time
         due to distributed locking.
+        
+        ISSUE #9 FIX: Uses asyncio.Lock to ensure atomic state transitions and prevent
+        race conditions when start() is called concurrently from multiple tasks.
         """
         async with self._lifecycle_lock:
             if self._running:
@@ -128,7 +132,11 @@ class ParserWorker:
         logger.info("Parser worker stopped")
     
     async def shutdown(self) -> None:
-        """Stop the worker gracefully."""
+        """Stop the worker gracefully.
+        
+        ISSUE #9 FIX: Uses asyncio.Lock to ensure atomic state transitions and prevent
+        race conditions when shutdown() is called concurrently or during start().
+        """
         logger.info("Parser worker shutdown requested")
         async with self._lifecycle_lock:
             if not self._running:

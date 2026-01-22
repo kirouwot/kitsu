@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import threading
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
@@ -136,16 +137,9 @@ class Settings(BaseModel):
 
 # Deferred settings initialization to avoid import-time side effects (ISSUE #6)
 # Settings validation will happen during application startup, not module import
+# ISSUE #7 FIX: Use threading.Lock for proper synchronization in both sync and async contexts
 _settings_instance: Settings | None = None
-_settings_lock = asyncio.Lock()
-
-
-async def _init_settings_async() -> None:
-    """Initialize settings with asyncio.Lock protection."""
-    global _settings_instance
-    async with _settings_lock:
-        if _settings_instance is None:
-            _settings_instance = Settings.from_env()
+_settings_lock = threading.Lock()
 
 
 def get_settings() -> Settings:
@@ -153,6 +147,10 @@ def get_settings() -> Settings:
     
     This allows the module to be imported without environment validation.
     Settings validation happens when first accessed (typically during startup).
+    
+    ISSUE #7 FIX: Uses double-checked locking pattern with threading.Lock to prevent
+    race conditions when multiple tasks/threads try to initialize settings concurrently.
+    threading.Lock works correctly in both sync and async contexts.
     
     Returns:
         Settings instance
@@ -162,36 +160,15 @@ def get_settings() -> Settings:
     """
     global _settings_instance
     
-    # Fast path: already initialized
+    # Fast path: already initialized (no lock needed)
     if _settings_instance is not None:
         return _settings_instance
     
-    # Initialization required - use asyncio.Lock for protection
-    try:
-        loop = asyncio.get_running_loop()
-        # We're in an async context with a running loop
-        # Check if lock is available before initializing
+    # Slow path: need to initialize with proper locking
+    with _settings_lock:
+        # Double-check: another thread might have initialized while we waited for lock
         if _settings_instance is None:
-            if not _settings_lock.locked():
-                # Lock not held - safe to initialize directly in this sync function
-                # called from async context (typical case: settings proxy access)
-                _settings_instance = Settings.from_env()
-            else:
-                # Lock is held by another task - wait briefly for it to complete
-                # Use busy-wait since we can't await in sync function
-                import time
-                max_wait = 1.0  # 1 second max wait
-                start = time.time()
-                while _settings_instance is None and time.time() - start < max_wait:
-                    time.sleep(0.001)
-                if _settings_instance is None:
-                    # Timeout - initialize anyway to avoid deadlock
-                    _settings_instance = Settings.from_env()
-    except RuntimeError:
-        # No running event loop - sync context (startup/tests)
-        # Use asyncio.run() to properly acquire and use the lock
-        if _settings_instance is None:
-            asyncio.run(_init_settings_async())
+            _settings_instance = Settings.from_env()
     
     return _settings_instance
 
