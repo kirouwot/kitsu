@@ -17,7 +17,7 @@ _internal_routers = [
     internal_health.router,
     internal_favorites.router,
     internal_watch.router,
-    parser_admin.router,
+    parser_admin,
 ]
 
 _admin_routers = [
