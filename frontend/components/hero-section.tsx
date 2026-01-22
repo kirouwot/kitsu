@@ -11,7 +11,7 @@ import Container from "./container";
 import { motion } from "framer-motion";
 
 import React, { useState, useEffect } from "react";
-import { ArrowLeft, ArrowRight, Play, Info, Star, Calendar, Flame, Heart } from "lucide-react";
+import { ArrowLeft, ArrowRight, Play, Info, Calendar, Flame, Heart } from "lucide-react";
 
 import { ROUTES } from "@/constants/routes";
 import { ButtonLink } from "./common/button-link";
@@ -40,11 +40,16 @@ const HeroSection = (props: IHeroSectionProps) => {
       api.scrollNext();
     }, 5000);
 
-    api.on("select", () => {
+    const handleSelect = () => {
       setCurrent(api.selectedScrollSnap());
-    });
+    };
 
-    return () => clearInterval(interval);
+    api.on("select", handleSelect);
+
+    return () => {
+      clearInterval(interval);
+      api.off("select", handleSelect);
+    };
   }, [api]);
 
   if (!spotlightList.length) return <LoadingSkeleton />;
@@ -133,14 +138,12 @@ const HeroCarouselItem = ({ anime, isActive }: { anime: SpotlightAnime; isActive
             transition={{ delay: 0.3 }}
             className="flex items-center gap-3"
           >
-            <div className="flex items-center gap-2 bg-yellow-500/20 backdrop-blur-md px-4 py-2 rounded-full border border-yellow-500/30">
-              <Flame className="w-5 h-5 text-yellow-500" />
-              <span className="font-bold text-yellow-500">#{anime.rank || 1} Trending</span>
-            </div>
-            <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-4 py-2 rounded-full">
-              <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-              <span className="font-bold">8.9</span>
-            </div>
+            {anime.rank && (
+              <div className="flex items-center gap-2 bg-yellow-500/20 backdrop-blur-md px-4 py-2 rounded-full border border-yellow-500/30">
+                <Flame className="w-5 h-5 text-yellow-500" />
+                <span className="font-bold text-yellow-500">#{anime.rank} Trending</span>
+              </div>
+            )}
           </motion.div>
 
           {/* TITLE */}
