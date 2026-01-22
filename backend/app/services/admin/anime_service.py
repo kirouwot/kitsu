@@ -10,20 +10,17 @@ This service implements all business logic for anime CMS operations:
 - Automatic broken state detection
 """
 import uuid
-from typing import Any
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...crud.anime_admin import (
     get_anime_admin_list,
-    get_anime_by_id_admin,
     check_anime_has_video,
     detect_anime_errors,
     update_anime_admin,
     auto_update_broken_state,
 )
-from ...models.anime import Anime
 from ...models.user import User
 from ...schemas.anime_admin import (
     AnimeAdminListFilter,
