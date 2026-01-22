@@ -37,8 +37,6 @@ class AuditLogRepository:
             user_agent=user_agent,
         )
         self.session.add(audit_log)
-        await self.session.commit()
-        await self.session.refresh(audit_log)
         return audit_log
 
     async def get_by_id(self, audit_log_id: uuid.UUID) -> AuditLog | None:

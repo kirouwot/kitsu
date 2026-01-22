@@ -20,8 +20,6 @@ class PermissionRepository:
             is_system=is_system,
         )
         self.session.add(permission)
-        await self.session.commit()
-        await self.session.refresh(permission)
         return permission
 
     async def get_by_id(self, permission_id: uuid.UUID) -> Permission | None:
