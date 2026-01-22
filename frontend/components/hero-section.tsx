@@ -43,20 +43,20 @@ const HeroSection = (props: IHeroSectionProps) => {
           ))}
         </CarouselContent>
       </Carousel>
-      <div className="absolute hidden md:flex items-center gap-5 right-10 3xl:bottom-10 bottom-24 z-50 isolate">
+      <div className="absolute hidden md:flex items-center gap-3 right-10 3xl:bottom-10 bottom-24 z-50 isolate">
         <Button
           onClick={() => {
             api?.scrollPrev();
           }}
-          className="rounded-full bg-transparent border border-white h-10 w-10 hover:bg-slate-500"
+          className="rounded-full bg-background/20 backdrop-blur-md border border-foreground/20 h-12 w-12 hover:bg-primary hover:border-primary transition-all duration-300 hover:scale-110"
         >
-          <ArrowLeft className="text-white shrink-0" />
+          <ArrowLeft className="text-foreground shrink-0" />
         </Button>
         <Button
           onClick={() => api?.scrollNext()}
-          className="rounded-full bg-transparent border border-white h-10 w-10 hover:bg-slate-500"
+          className="rounded-full bg-background/20 backdrop-blur-md border border-foreground/20 h-12 w-12 hover:bg-primary hover:border-primary transition-all duration-300 hover:scale-110"
         >
-          <ArrowRight className="text-white shrink-0" />
+          <ArrowRight className="text-foreground shrink-0" />
         </Button>
       </div>
     </div>
@@ -64,81 +64,63 @@ const HeroSection = (props: IHeroSectionProps) => {
 };
 
 const HeroCarouselItem = ({ anime }: { anime: SpotlightAnime }) => {
-  // const [isHovered, setIsHovered] = useState(false);
-
-  // const hoverTimeoutRef = React.useRef<NodeJS.Timeout | null>(null); // Use ref to store the timeout ID
-
-  // const handleMouseEnter = () => {
-  //   hoverTimeoutRef.current = setTimeout(() => {
-  //     setIsHovered(true);
-  //   }, 1500);
-  // };
-
-  // const handleMouseLeave = () => {
-  //   if (hoverTimeoutRef.current) {
-  //     clearTimeout(hoverTimeoutRef.current); // Clear the timeout when mouse leaves
-  //   }
-  //   setIsHovered(false);
-  // };
-
   return (
     <div
-      className={`w-full bg-cover bg-no-repeat bg-center h-[80vh] relative`}
+      className={`w-full bg-cover bg-no-repeat bg-center h-[80vh] relative overflow-hidden`}
       style={{ backgroundImage: `url(${anime?.poster})` }}
-      // onMouseEnter={handleMouseEnter}
-      // onMouseLeave={handleMouseLeave}
     >
-      {/* {isHovered && (
-        <div className="absolute inset-0 z-0">
-          <iframe
-            className="w-full h-full object-cover"
-            src={`https://www.youtube.com/embed/${anime?.trailer.id}?autoplay=1&mute=0&controls=0&modestbranding=1`}
-            title="YouTube video player"
-            allow="autoplay; encrypted-media"
-            allowFullScreen
-          ></iframe>
-        </div>
-      )} */}
+      {/* Gradient Overlay - Enhanced for better readability */}
+      <div className="absolute h-full w-full inset-0 m-auto bg-gradient-to-r from-background via-background/70 to-transparent z-10"></div>
+      <div className="absolute h-full w-full inset-0 m-auto bg-gradient-to-t from-background via-background/50 to-transparent z-10"></div>
 
-      {/* Gradient Overlay */}
-      <div className="absolute h-full w-full inset-0 m-auto bg-gradient-to-r from-slate-900 to-transparent z-10"></div>
-      <div className="absolute h-full w-full inset-0 m-auto bg-gradient-to-t from-slate-900 to-transparent z-10"></div>
-
-      {/* Content Section (remains outside the hover area) */}
-      <div className="w-full h-[calc(100%-5.25rem)]  relative z-20">
+      {/* Content Section */}
+      <div className="w-full h-[calc(100%-5.25rem)] relative z-20">
         <Container className="w-full h-full flex flex-col justify-end md:justify-center pb-10">
-          <div className="space-y-2 lg:w-[40vw]">
-            {/* Title and description moved inside the hover area */}
-            <h1 className="text-4xl font-black">{anime?.name}</h1>
+          <div className="space-y-3 lg:w-[45vw] animate-fade-in">
+            {/* Title with better typography */}
+            <h1 className="text-4xl md:text-5xl font-bold leading-tight tracking-tight drop-shadow-lg">
+              {anime?.name}
+            </h1>
 
-            <div className="flex flex-row items-center space-x-2 ">
+            {/* Badges with modern styling */}
+            <div className="flex flex-row items-center space-x-2">
               {anime.episodes.sub && (
-                <Badge className="bg-red-200 flex flex-row items-center space-x-0.5">
-                  <Captions size={"16"} />
-                  <span>{anime.episodes.sub}</span>
+                <Badge className="bg-primary text-white flex flex-row items-center space-x-1 px-2.5 py-1 font-semibold">
+                  <Captions size={16} />
+                  <span>SUB {anime.episodes.sub}</span>
                 </Badge>
               )}
               {anime.episodes.dub && (
-                <Badge className="bg-green-200 flex flex-row items-center space-x-0.5">
-                  <Mic size={"16"} />
-                  <span>{anime.episodes.dub}</span>
+                <Badge className="bg-green-500 text-white flex flex-row items-center space-x-1 px-2.5 py-1 font-semibold">
+                  <Mic size={16} />
+                  <span>DUB {anime.episodes.dub}</span>
                 </Badge>
               )}
+              <Badge variant="outline" className="border-foreground/30 text-foreground/80 px-2.5 py-1">
+                {anime?.otherInfo?.[0] || anime?.type || "Anime"}
+              </Badge>
             </div>
 
-            <p className="text-lg line-clamp-4">
+            {/* Description */}
+            <p className="text-base md:text-lg line-clamp-3 md:line-clamp-4 text-foreground/90 leading-relaxed">
               {anime?.description}
             </p>
-            <div className="flex items-center gap-5 !mt-5">
+
+            {/* Action Buttons with hover effects */}
+            <div className="flex items-center gap-3 !mt-6">
               <ButtonLink
                 href={`${ROUTES.ANIME_DETAILS}/${anime.id}`}
-                className="h-10 text-md bg-[#e9376b] text-white hover:bg-[#e9376b]"
+                className="h-11 px-6 text-base bg-primary hover:bg-primary/90 text-white font-semibold shadow-lg shadow-primary/30 transition-all duration-300 hover:scale-105"
               >
-                Learn More
+                Смотреть
               </ButtonLink>
-              {/* <ButtonLink href={`${ROUTES.WATCH}?anime=${anime.id}&episode=${}`} className="h-10 text-md" variant={"secondary"}>
-                Watch
-              </ButtonLink> */}
+              <ButtonLink
+                href={`${ROUTES.ANIME_DETAILS}/${anime.id}`}
+                className="h-11 px-6 text-base border-2 border-foreground/20 bg-background/20 backdrop-blur-sm hover:bg-foreground/10 transition-all duration-300"
+                variant="outline"
+              >
+                Подробнее
+              </ButtonLink>
             </div>
           </div>
         </Container>
