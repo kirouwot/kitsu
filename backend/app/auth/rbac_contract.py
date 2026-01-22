@@ -108,6 +108,7 @@ ADMIN_PERMISSIONS: Final[frozenset[str]] = frozenset({
     "admin.parser.emergency",
     "admin.parser.logs",
     "admin.parser.view",
+    "admin.parser.manage",
     "admin.roles.manage",
     "admin.roles.view",
     "admin.users.manage",
