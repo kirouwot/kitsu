@@ -48,7 +48,10 @@
 **DETAILS**:
 - Task reference stored in `self._task` field (line 40, 50)
 - Guards against duplicate task creation (line 48-49: checks if task exists and not done)
-- Exception handling in `_loop()` uses `except Exception` which does NOT catch `asyncio.CancelledError` (it's a `BaseException`)
+- Exception handling in `_loop()` uses `except Exception` which does NOT catch `asyncio.CancelledError`
+  - **Technical note**: In Python 3.8+, `asyncio.CancelledError` was changed from inheriting `Exception` to inheriting `BaseException`
+  - This project requires Python >= 3.12, where `CancelledError` is a `BaseException`
+  - Verified: `except Exception` does NOT catch `CancelledError`, allowing proper task cancellation
 - This allows proper cancellation propagation during shutdown
 - Redis distributed locking prevents multiple instances across workers
 - Proper logging for observability (lines 97, 112, 115, 131, 134)
@@ -111,9 +114,15 @@ async def lifespan(app: FastAPI):
 - ✅ Task ownership: `ParserAutoupdateScheduler` class owns the task
 - ✅ Lifecycle control: Clear `start()` and `stop()` methods
 - ✅ Shutdown guarantee: Integrated into application lifespan manager
-- ✅ Exception safety: `CancelledError` not caught by `except Exception` in loop
+- ✅ Exception safety: `CancelledError` not caught by `except Exception` (inherits from `BaseException` in Python 3.8+)
 - ✅ No duplicate tasks: Guards with `if self._task and not self._task.done()`
 - ✅ No reference loss: Task stored in `self._task` throughout lifecycle
+
+**Python Version Compatibility**:
+- Project requires: Python >= 3.12 (per `pyproject.toml`)
+- In Python 3.8+: `asyncio.CancelledError` changed from `Exception` to `BaseException`
+- Verified in Python 3.12: `except Exception` does NOT catch `CancelledError`
+- Result: Task cancellation works correctly with current exception handling
 
 ---
 
