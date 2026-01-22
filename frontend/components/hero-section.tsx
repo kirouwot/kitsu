@@ -8,16 +8,16 @@ import {
 } from "./ui/carousel";
 
 import Container from "./container";
-import { Button } from "./ui/button";
+import { motion } from "framer-motion";
 
-import React from "react";
-import { ArrowLeft, ArrowRight, Captions, Mic } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { ArrowLeft, ArrowRight, Play, Info, Star, Calendar, Flame, Heart } from "lucide-react";
 
 import { ROUTES } from "@/constants/routes";
 import { ButtonLink } from "./common/button-link";
 import { SpotlightAnime } from "@/types/anime";
-import { Badge } from "./ui/badge";
 import { HERO_SPOTLIGHT_FALLBACK } from "@/constants/fallbacks";
+import { cn } from "@/lib/utils";
 
 type IHeroSectionProps = {
   spotlightAnime: SpotlightAnime[];
@@ -26,105 +26,211 @@ type IHeroSectionProps = {
 
 const HeroSection = (props: IHeroSectionProps) => {
   const [api, setApi] = React.useState<CarouselApi>();
+  const [current, setCurrent] = useState(0);
 
   const hasSpotlight = Array.isArray(props.spotlightAnime) && props.spotlightAnime.length > 0;
   const shouldUseFallback = props.isDataLoading || !hasSpotlight;
   const spotlightList = shouldUseFallback ? HERO_SPOTLIGHT_FALLBACK : props.spotlightAnime;
+
+  // Auto-play every 5 seconds
+  useEffect(() => {
+    if (!api) return;
+    
+    const interval = setInterval(() => {
+      api.scrollNext();
+    }, 5000);
+
+    api.on("select", () => {
+      setCurrent(api.selectedScrollSnap());
+    });
+
+    return () => clearInterval(interval);
+  }, [api]);
+
   if (!spotlightList.length) return <LoadingSkeleton />;
 
   return (
-    <div className="h-[80vh] w-full relative">
-      <Carousel className="w-full" setApi={setApi} opts={{}}>
+    <div className="relative h-[85vh] w-full overflow-hidden">
+      <Carousel className="w-full" setApi={setApi} opts={{ loop: true }}>
         <CarouselContent className="">
           {spotlightList.map((anime, index) => (
             <CarouselItem key={index}>
-              <HeroCarouselItem anime={anime} />
+              <HeroCarouselItem anime={anime} isActive={current === index} />
             </CarouselItem>
           ))}
         </CarouselContent>
       </Carousel>
-      <div className="absolute hidden md:flex items-center gap-3 right-10 3xl:bottom-10 bottom-24 z-50 isolate">
-        <Button
-          onClick={() => {
-            api?.scrollPrev();
-          }}
-          className="rounded-full bg-background/20 backdrop-blur-md border border-foreground/20 h-12 w-12 hover:bg-primary hover:border-primary transition-all duration-300 hover:scale-110"
+
+      {/* DOT NAVIGATION */}
+      <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex gap-3 z-50">
+        {spotlightList.map((_, i) => (
+          <motion.button
+            key={i}
+            onClick={() => api?.scrollTo(i)}
+            className={cn(
+              "h-1.5 rounded-full transition-all duration-500",
+              i === current 
+                ? "w-12 bg-primary shadow-lg shadow-primary/50" 
+                : "w-8 bg-white/30 hover:bg-white/50"
+            )}
+            whileHover={{ scale: 1.2 }}
+            whileTap={{ scale: 0.9 }}
+          />
+        ))}
+      </div>
+
+      {/* ARROW BUTTONS */}
+      <div className="absolute right-8 bottom-8 flex gap-4 z-50">
+        <motion.button
+          whileHover={{ scale: 1.1, x: -5 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => api?.scrollPrev()}
+          className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 flex items-center justify-center hover:bg-primary/20 transition-all duration-300"
         >
-          <ArrowLeft className="text-foreground shrink-0" />
-        </Button>
-        <Button
+          <ArrowLeft className="w-6 h-6 text-white" />
+        </motion.button>
+        <motion.button
+          whileHover={{ scale: 1.1, x: 5 }}
+          whileTap={{ scale: 0.95 }}
           onClick={() => api?.scrollNext()}
-          className="rounded-full bg-background/20 backdrop-blur-md border border-foreground/20 h-12 w-12 hover:bg-primary hover:border-primary transition-all duration-300 hover:scale-110"
+          className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 flex items-center justify-center hover:bg-primary/20 transition-all duration-300"
         >
-          <ArrowRight className="text-foreground shrink-0" />
-        </Button>
+          <ArrowRight className="w-6 h-6 text-white" />
+        </motion.button>
       </div>
     </div>
   );
 };
 
-const HeroCarouselItem = ({ anime }: { anime: SpotlightAnime }) => {
+const HeroCarouselItem = ({ anime, isActive }: { anime: SpotlightAnime; isActive?: boolean }) => {
   return (
-    <div
-      className={`w-full bg-cover bg-no-repeat bg-center h-[80vh] relative overflow-hidden`}
-      style={{ backgroundImage: `url(${anime?.poster})` }}
-    >
-      {/* Gradient Overlay - Enhanced for better readability */}
-      <div className="absolute h-full w-full inset-0 m-auto bg-gradient-to-r from-background via-background/70 to-transparent z-10"></div>
-      <div className="absolute h-full w-full inset-0 m-auto bg-gradient-to-t from-background via-background/50 to-transparent z-10"></div>
+    <div className="relative h-[85vh] w-full overflow-hidden">
+      {/* BACKGROUND IMAGE with parallax */}
+      <motion.div
+        initial={{ scale: 1.1 }}
+        animate={{ scale: isActive ? 1 : 1.1 }}
+        transition={{ duration: 8, ease: "easeOut" }}
+        className="absolute inset-0 bg-cover bg-no-repeat bg-center"
+        style={{ backgroundImage: `url(${anime?.poster})` }}
+      />
 
-      {/* Content Section */}
-      <div className="w-full h-[calc(100%-5.25rem)] relative z-20">
-        <Container className="w-full h-full flex flex-col justify-end md:justify-center pb-10">
-          <div className="space-y-3 lg:w-[45vw] animate-fade-in">
-            {/* Title with better typography */}
-            <h1 className="text-4xl md:text-5xl font-bold leading-tight tracking-tight drop-shadow-lg">
-              {anime?.name}
-            </h1>
+      {/* GRADIENT OVERLAYS */}
+      <div className="absolute inset-0 bg-gradient-to-r from-black via-black/70 to-transparent"></div>
+      <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent"></div>
 
-            {/* Badges with modern styling */}
-            <div className="flex flex-row items-center space-x-2">
-              {anime.episodes.sub && (
-                <Badge className="bg-primary text-white flex flex-row items-center space-x-1 px-2.5 py-1 font-semibold">
-                  <Captions size={16} />
-                  <span>SUB {anime.episodes.sub}</span>
-                </Badge>
-              )}
-              {anime.episodes.dub && (
-                <Badge className="bg-green-500 text-white flex flex-row items-center space-x-1 px-2.5 py-1 font-semibold">
-                  <Mic size={16} />
-                  <span>DUB {anime.episodes.dub}</span>
-                </Badge>
-              )}
-              <Badge variant="outline" className="border-foreground/30 text-foreground/80 px-2.5 py-1">
-                {anime?.otherInfo?.[0] || anime?.type || "Anime"}
-              </Badge>
+      {/* CONTENT */}
+      <Container className="relative h-full flex items-center z-20">
+        <motion.div
+          initial={{ opacity: 0, x: -100 }}
+          animate={{ opacity: isActive ? 1 : 0, x: isActive ? 0 : -100 }}
+          transition={{ duration: 0.8, delay: 0.2 }}
+          className="max-w-2xl space-y-6"
+        >
+          {/* RANK BADGE */}
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="flex items-center gap-3"
+          >
+            <div className="flex items-center gap-2 bg-yellow-500/20 backdrop-blur-md px-4 py-2 rounded-full border border-yellow-500/30">
+              <Flame className="w-5 h-5 text-yellow-500" />
+              <span className="font-bold text-yellow-500">#{anime.rank || 1} Trending</span>
             </div>
+            <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-4 py-2 rounded-full">
+              <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+              <span className="font-bold">8.9</span>
+            </div>
+          </motion.div>
 
-            {/* Description */}
-            <p className="text-base md:text-lg line-clamp-3 md:line-clamp-4 text-foreground/90 leading-relaxed">
-              {anime?.description}
-            </p>
+          {/* TITLE */}
+          <motion.h1
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="text-5xl md:text-6xl lg:text-7xl font-black tracking-tight leading-none"
+          >
+            {anime?.name}
+          </motion.h1>
 
-            {/* Action Buttons with hover effects */}
-            <div className="flex items-center gap-3 !mt-6">
+          {/* METADATA */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5 }}
+            className="flex flex-wrap gap-3 items-center text-sm"
+          >
+            <span className="px-3 py-1.5 bg-primary/20 rounded-full font-semibold">
+              {anime?.type || "TV Series"}
+            </span>
+            {anime?.otherInfo?.[0] && (
+              <>
+                <span className="flex items-center gap-1">
+                  <Calendar className="w-4 h-4" />
+                  {anime.otherInfo[0]}
+                </span>
+              </>
+            )}
+            {anime.episodes.sub && (
+              <>
+                <span>•</span>
+                <span className="px-2 py-1 bg-blue-500/20 rounded text-blue-300">SUB {anime.episodes.sub}</span>
+              </>
+            )}
+            {anime.episodes.dub && (
+              <>
+                <span>•</span>
+                <span className="px-2 py-1 bg-green-500/20 rounded text-green-300">DUB {anime.episodes.dub}</span>
+              </>
+            )}
+          </motion.div>
+
+          {/* DESCRIPTION */}
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.6 }}
+            className="text-base md:text-lg text-gray-300 line-clamp-3 md:line-clamp-4 max-w-xl leading-relaxed"
+          >
+            {anime?.description}
+          </motion.p>
+
+          {/* ACTION BUTTONS */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.7 }}
+            className="flex items-center gap-4 pt-4"
+          >
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
               <ButtonLink
                 href={`${ROUTES.ANIME_DETAILS}/${anime.id}`}
-                className="h-11 px-6 text-base bg-primary hover:bg-primary/90 text-white font-semibold shadow-lg shadow-primary/30 transition-all duration-300 hover:scale-105"
+                className="flex items-center gap-3 bg-primary hover:bg-primary/90 px-8 py-4 h-14 text-lg font-bold shadow-2xl shadow-primary/30 transition-all rounded-2xl"
               >
+                <Play className="w-6 h-6 fill-white" />
                 Смотреть
               </ButtonLink>
+            </motion.div>
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
               <ButtonLink
                 href={`${ROUTES.ANIME_DETAILS}/${anime.id}`}
-                className="h-11 px-6 text-base border-2 border-foreground/20 bg-background/20 backdrop-blur-sm hover:bg-foreground/10 transition-all duration-300"
+                className="flex items-center gap-3 bg-white/10 backdrop-blur-md hover:bg-white/20 px-8 py-4 h-14 text-lg font-bold border border-white/20 transition-all rounded-2xl"
                 variant="outline"
               >
+                <Info className="w-6 h-6" />
                 Подробнее
               </ButtonLink>
-            </div>
-          </div>
-        </Container>
-      </div>
+            </motion.div>
+            <motion.button
+              whileHover={{ scale: 1.1, rotate: 5 }}
+              whileTap={{ scale: 0.9 }}
+              className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center hover:bg-primary/20 transition-all"
+            >
+              <Heart className="w-6 h-6" />
+            </motion.button>
+          </motion.div>
+        </motion.div>
+      </Container>
     </div>
   );
 };

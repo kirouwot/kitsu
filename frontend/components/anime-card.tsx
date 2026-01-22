@@ -1,13 +1,14 @@
+"use client";
+
 import React from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { motion } from "framer-motion";
 
-import { cn, formatSecondsToMMSS } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { Badge } from "./ui/badge";
-import { buttonVariants } from "./ui/button";
-import { Captions, Mic, Star } from "lucide-react";
+import { Captions, Mic, Star, Play, Heart } from "lucide-react";
 import { WatchHistory } from "@/hooks/use-get-bookmark";
-import { Progress } from "./ui/progress";
 
 type Props = {
   className?: string;
@@ -54,121 +55,165 @@ const AnimeCard = ({
   const continueWatching = props.continueWatching;
 
   return (
-    <Link href={props.href as string}>
-      <div
-        className={cn([
-          "rounded-xl overflow-hidden relative cursor-pointer group",
-          "transition-all duration-300 ease-out",
-          "hover:scale-105 hover:-translate-y-2",
-          "hover:shadow-2xl hover:shadow-primary/20",
-          variant === "sm" &&
-            "h-[12rem] min-[320px]:h-[16.625rem] sm:h-[18rem] max-w-[12.625rem] md:min-w-[12rem]",
-          variant === "lg" &&
-            "max-w-[12.625rem] md:max-w-[18.75rem] h-auto md:h-[25rem] shrink-0 lg:w-[18.75rem]",
-          props.className,
-        ])}
-      >
-        {/* Image with aspect ratio 2:3 */}
-        <div className="relative w-full h-full">
-          <Image
-            src={props.poster}
-            alt={props.title}
-            fill
-            className="object-cover transition-transform duration-500 group-hover:scale-110"
-            unoptimized
-          />
-          
-          {/* Gradient overlay */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-80 group-hover:opacity-100 transition-opacity duration-300"></div>
-          
-          {/* Badges at top */}
-          <div className="absolute top-2 left-2 flex flex-wrap gap-1.5 z-10">
-            {props.isNew && (
-              <Badge className="bg-primary text-primary-foreground text-xs font-semibold px-2 py-0.5">
-                Новинка
-              </Badge>
-            )}
-            {props.isOngoing && (
-              <Badge className="bg-green-500 text-white text-xs font-semibold px-2 py-0.5">
-                Онгоинг
-              </Badge>
-            )}
-          </div>
-
-          {/* Rating */}
-          {props.rating && (
-            <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/60 backdrop-blur-sm rounded-full px-2 py-1 z-10">
-              <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-              <span className="text-xs font-semibold text-white">{props.rating.toFixed(1)}</span>
+    <motion.div
+      whileHover={{ y: -12, scale: 1.03 }}
+      transition={{ type: "spring", stiffness: 300, damping: 20 }}
+      className="group relative"
+    >
+      <Link href={props.href as string}>
+        <div
+          className={cn([
+            "rounded-2xl overflow-hidden relative cursor-pointer bg-card/50 backdrop-blur-sm",
+            variant === "sm" &&
+              "h-[12rem] min-[320px]:h-[16.625rem] sm:h-[18rem] max-w-[12.625rem] md:min-w-[12rem]",
+            variant === "lg" &&
+              "max-w-[12.625rem] md:max-w-[18.75rem] h-auto md:h-[25rem] shrink-0 lg:w-[18.75rem]",
+            props.className,
+          ])}
+        >
+          {/* Image with aspect ratio 2:3 */}
+          <div className="relative w-full h-full">
+            <Image
+              src={props.poster}
+              alt={props.title}
+              fill
+              className="object-cover transition-transform duration-700 group-hover:scale-125"
+              unoptimized
+            />
+            
+            {/* Gradient overlay */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent opacity-60 group-hover:opacity-90 transition-opacity duration-500"></div>
+            
+            {/* SUB/DUB Badges at top left */}
+            <div className="absolute top-3 left-3 flex gap-2 z-10">
+              {props.sub && (
+                <motion.div
+                  initial={{ x: -20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  className="bg-blue-500/90 backdrop-blur-sm px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1"
+                >
+                  <Captions className="w-3 h-3" />
+                  SUB {props.sub}
+                </motion.div>
+              )}
+              {props.dub && (
+                <motion.div
+                  initial={{ x: -20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ delay: 0.1 }}
+                  className="bg-green-500/90 backdrop-blur-sm px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1"
+                >
+                  <Mic className="w-3 h-3" />
+                  DUB {props.dub}
+                </motion.div>
+              )}
             </div>
-          )}
-        </div>
+
+            {/* Status Badges at top */}
+            {(props.isNew || props.isOngoing) && (
+              <div className="absolute top-3 left-3 flex flex-wrap gap-1.5 z-10">
+                {props.isNew && (
+                  <Badge className="bg-primary text-primary-foreground text-xs font-semibold px-2 py-0.5">
+                    Новинка
+                  </Badge>
+                )}
+                {props.isOngoing && (
+                  <Badge className="bg-green-500 text-white text-xs font-semibold px-2 py-0.5">
+                    Онгоинг
+                  </Badge>
+                )}
+              </div>
+            )}
+
+            {/* Rating - always visible */}
+            {props.rating && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="absolute top-3 right-3 flex items-center gap-1.5 bg-black/70 backdrop-blur-md px-3 py-1.5 rounded-full border border-yellow-500/30 z-10"
+              >
+                <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                <span className="text-sm font-bold text-white">{props.rating.toFixed(1)}</span>
+              </motion.div>
+            )}
+
+            {/* PLAY BUTTON - appears on hover */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.5 }}
+              className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-20"
+            >
+              <motion.div
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+                className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-primary/90 backdrop-blur-md flex items-center justify-center shadow-2xl shadow-primary/50 border-2 border-white/20"
+              >
+                <Play className="w-8 h-8 md:w-10 md:h-10 fill-white text-white ml-1" />
+              </motion.div>
+            </motion.div>
+          </div>
 
         {displayDetails && (
           <>
-            <div className="absolute bottom-0 w-full flex flex-col gap-1 px-3 pb-3 z-10">
-              <h5 className="line-clamp-2 font-semibold text-sm leading-tight drop-shadow-md">
-                {props.title}
-              </h5>
-              {continueWatching ? (
-                <div className="flex flex-col gap-1">
-                  <p className="text-xs text-gray-300">
-                    Серия {continueWatching.episode}
-                  </p>
-                  {continueWatching.isCompleted ? (
-                    <span className="text-xs font-semibold text-emerald-400">
-                      Completed
-                    </span>
-                  ) : (
-                    <Progress value={continueWatching.progressPercent} className="h-1" />
-                  )}
-                  <span
-                    className={cn(
-                      buttonVariants({ variant: "default", size: "sm" }),
-                      "mt-1 w-fit text-xs pointer-events-none bg-primary hover:bg-primary/90",
+            {/* INFO SECTION - slide up on hover */}
+            <motion.div
+              initial={{ y: 0 }}
+              className="absolute bottom-0 left-0 right-0 p-4 z-10"
+            >
+              <div className="transform translate-y-8 group-hover:translate-y-0 transition-transform duration-500">
+                <h3 className="font-bold text-white text-sm md:text-base line-clamp-2 mb-2 drop-shadow-lg">
+                  {props.title}
+                </h3>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs text-gray-200">
+                    {props.subTitle && (
+                      <>
+                        <span className="px-2 py-0.5 bg-white/20 rounded-md backdrop-blur-sm">{props.subTitle}</span>
+                        <span>•</span>
+                      </>
                     )}
+                    {continueWatching && (
+                      <span>Ep {continueWatching.episode}</span>
+                    )}
+                  </div>
+                  <motion.button
+                    whileHover={{ scale: 1.2 }}
+                    whileTap={{ scale: 0.9 }}
+                    className="p-2 bg-white/20 backdrop-blur-sm rounded-full"
                   >
-                    Продолжить
-                  </span>
+                    <Heart className="w-4 h-4 text-white" />
+                  </motion.button>
                 </div>
-              ) : (
-                <>
-                  {props.watchDetail && (
-                    <>
-                      <p className="text-xs text-gray-300">
-                        Episode {props.watchDetail.episodeNumber} -{" "}
-                        {formatSecondsToMMSS(props.watchDetail.current)} /{" "}
-                        {formatSecondsToMMSS(props.watchDetail.timestamp)}
-                      </p>
-                      <Progress value={percentage} className="h-1" />
-                    </>
-                  )}
-                  {props.episodeCard ? (
-                    <div className="flex flex-row items-center space-x-1.5">
-                      {props.sub && (
-                        <Badge className="bg-primary/90 text-white flex flex-row items-center space-x-0.5 text-xs px-1.5 py-0">
-                          <Captions size={14} />
-                          <span>{props.sub}</span>
-                        </Badge>
-                      )}
-                      {props.dub && (
-                        <Badge className="bg-green-500/90 text-white flex flex-row items-center space-x-0.5 text-xs px-1.5 py-0">
-                          <Mic size={14} />
-                          <span>{props.dub}</span>
-                        </Badge>
-                      )}
-                      <p className="text-xs text-gray-300 truncate">{props.subTitle}</p>
-                    </div>
-                  ) : (
-                    <span className="text-xs text-gray-300">{props.subTitle}</span>
-                  )}
-                </>
-              )}
-            </div>
+              </div>
+            </motion.div>
+
+            {/* PROGRESS BAR for continue watching */}
+            {continueWatching && !continueWatching.isCompleted && (
+              <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-gray-800/80 z-10">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${continueWatching.progressPercent}%` }}
+                  transition={{ duration: 1, ease: "easeOut" }}
+                  className="h-full bg-gradient-to-r from-primary via-pink-500 to-primary rounded-full"
+                />
+              </div>
+            )}
+
+            {/* PROGRESS BAR for watch detail */}
+            {props.watchDetail && !continueWatching && (
+              <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-gray-800/80 z-10">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${percentage}%` }}
+                  transition={{ duration: 1, ease: "easeOut" }}
+                  className="h-full bg-gradient-to-r from-primary via-pink-500 to-primary rounded-full"
+                />
+              </div>
+            )}
           </>
         )}
-      </div>
-    </Link>
+        </div>
+      </Link>
+    </motion.div>
   );
 };
 

@@ -1,6 +1,9 @@
+"use client";
+
 import React from "react";
 import Container from "./container";
 import FeaturedCollectionCard from "./featured-collection-card";
+import { motion } from "framer-motion";
 import { IAnime, LatestCompletedAnime } from "@/types/anime";
 import { MIN_FEATURED_ANIME } from "@/constants/ui";
 
@@ -28,7 +31,14 @@ const FeaturedCollection = ({ featuredAnime, loading }: Props) => {
   if (shouldShowSkeleton) return <LoadingSkeleton />;
   return (
     <Container className="flex flex-col gap-5 items-center lg:items-start py-5">
-      <h5 className="text-2xl font-bold">Featured Collection</h5>
+      <motion.h5
+        initial={{ opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        className="text-2xl md:text-3xl font-bold"
+      >
+        Featured Collection
+      </motion.h5>
       <div className="grid w-full gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
         {featuredAnime.map((category, idx) =>
           hasEnoughAnime(category) ? (

@@ -4,8 +4,8 @@ import React, { useCallback, useEffect, useState } from "react";
 import Container from "./container";
 import AnimeCard from "./anime-card";
 import { ROUTES } from "@/constants/routes";
-import BlurFade from "./ui/blur-fade";
 import { History } from "lucide-react";
+import { motion } from "framer-motion";
 import { useAuthSelector } from "@/store/auth-store";
 import { api } from "@/lib/api";
 import { PLACEHOLDER_POSTER } from "@/utils/constants";
@@ -172,33 +172,46 @@ const ContinueWatching = () => {
   if (!anime.length) return null;
 
   return (
-    <Container className="flex flex-col gap-5 py-10 items-center lg:items-start">
-      <div className="flex items-center gap-2">
-        <History />
-        <h5 className="text-2xl font-bold">Continue Watching</h5>
-      </div>
-      <div className="grid lg:grid-cols-5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-7 w-full gap-5 content-center">
-        {anime?.map(
-          (ani, idx) =>
-            ani.episode && (
-              <BlurFade key={ani.id ?? idx} delay={idx * 0.05} inView>
-                <AnimeCard
-                  title={ani.title}
-                  poster={ani.poster}
-                  className="self-center justify-self-center"
-                  href={`${ROUTES.ANIME_DETAILS}/${ani.id}`}
-                  watchDetail={null}
-                  continueWatching={{
-                    episode: ani.episode,
-                    progressPercent: ani.progressPercent,
-                    isCompleted: ani.isCompleted,
-                  }}
-                />
-              </BlurFade>
-            ),
-        )}
-      </div>
-    </Container>
+    <section className="py-8 bg-card/30 backdrop-blur-sm">
+      <Container className="flex flex-col gap-5 items-center lg:items-start">
+        <motion.h2
+          initial={{ opacity: 0, x: -20 }}
+          whileInView={{ opacity: 1, x: 0 }}
+          viewport={{ once: true }}
+          className="text-2xl md:text-3xl font-bold flex items-center gap-3"
+        >
+          <History className="w-6 h-6 text-primary" />
+          Continue Watching
+        </motion.h2>
+        <div className="grid lg:grid-cols-5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-7 w-full gap-5 content-center">
+          {anime?.map(
+            (ani, idx) =>
+              ani.episode && (
+                <motion.div
+                  key={ani.id ?? idx}
+                  initial={{ opacity: 0, x: 50 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: idx * 0.1 }}
+                >
+                  <AnimeCard
+                    title={ani.title}
+                    poster={ani.poster}
+                    className="self-center justify-self-center"
+                    href={`${ROUTES.ANIME_DETAILS}/${ani.id}`}
+                    watchDetail={null}
+                    continueWatching={{
+                      episode: ani.episode,
+                      progressPercent: ani.progressPercent,
+                      isCompleted: ani.isCompleted,
+                    }}
+                  />
+                </motion.div>
+              ),
+          )}
+        </div>
+      </Container>
+    </section>
   );
 };
 

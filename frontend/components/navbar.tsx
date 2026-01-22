@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 import Container from "./container";
@@ -44,39 +45,44 @@ const NavBar = () => {
   const isHeaderSticky = y > 0;
 
   return (
-    <div
+    <motion.div
+      initial={{ y: -100 }}
+      animate={{ y: 0 }}
+      transition={{ duration: 0.5, ease: "easeOut" }}
       className={cn([
         "h-fit w-full",
-        "sticky top-0 z-[100] transition-all duration-300",
+        "sticky top-0 z-[100] transition-all duration-500",
         isHeaderFixed ? "fixed bg-gradient-to-b from-background/80" : "",
         isHeaderSticky
-          ? "bg-clip-padding backdrop-filter backdrop-blur-xl bg-background/70 shadow-lg border-b border-border/50"
+          ? "bg-background/60 backdrop-blur-2xl shadow-2xl border-b border-primary/10"
           : "",
       ])}
     >
       <Container className="flex items-center justify-between py-2 gap-20 ">
-        <Link
-          href={ROUTES.HOME}
-          className="flex items-center gap-1 cursor-pointer group"
-        >
-          <Image
-            src="/icon.png"
-            alt="logo"
-            width={70}
-            height={70}
-            priority
-            suppressHydrationWarning
-            className="transition-transform duration-300 group-hover:scale-110"
-          />
-          <h1
-            className={cn([
-              nightTokyo.className,
-              "text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-foreground via-primary to-primary tracking-widest transition-all duration-300 group-hover:tracking-wide",
-            ])}
+        <motion.div whileHover={{ scale: 1.05 }} className="flex items-center gap-1">
+          <Link
+            href={ROUTES.HOME}
+            className="flex items-center gap-1 cursor-pointer group"
           >
-            Kitsunee
-          </h1>
-        </Link>
+            <Image
+              src="/icon.png"
+              alt="logo"
+              width={70}
+              height={70}
+              priority
+              suppressHydrationWarning
+              className="transition-transform duration-300 group-hover:scale-110"
+            />
+            <h1
+              className={cn([
+                nightTokyo.className,
+                "text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-foreground via-primary to-primary tracking-widest transition-all duration-300 group-hover:tracking-wide",
+              ])}
+            >
+              Kitsunee
+            </h1>
+          </Link>
+        </motion.div>
         <div className="hidden lg:flex items-center gap-10 ml-20">
           {menuItems.map((menu, idx) => (
             <Link 
@@ -107,7 +113,7 @@ const NavBar = () => {
           )}
         </div>
       </Container>
-    </div>
+    </motion.div>
   );
 };
 

@@ -3,8 +3,9 @@
 import React from "react";
 import Container from "./container";
 import AnimeCard from "./anime-card";
+import { motion } from "framer-motion";
+import { ChevronRight } from "lucide-react";
 
-import BlurFade from "./ui/blur-fade";
 import { IAnime } from "@/types/anime";
 import { ROUTES } from "@/constants/routes";
 
@@ -21,15 +22,46 @@ const AnimeSections = (props: Props) => {
   }
   return (
     <Container className="flex flex-col gap-6 py-10 items-center lg:items-start">
-      <div className="flex items-center justify-between w-full">
-        <h2 className="text-2xl md:text-3xl font-bold tracking-tight">{props.title}</h2>
-        <button className="text-primary hover:text-primary/80 transition-colors duration-200 text-sm font-semibold hidden sm:block">
-          Показать всё →
-        </button>
-      </div>
+      {/* HEADER */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        className="flex items-center justify-between w-full"
+      >
+        <div className="flex items-center gap-4">
+          <h2 className="text-3xl md:text-4xl font-bold tracking-tight">{props.title}</h2>
+          <motion.div
+            initial={{ scale: 0 }}
+            whileInView={{ scale: 1 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.2, type: "spring" }}
+          >
+            <span className="px-3 py-1.5 bg-primary/10 text-primary rounded-full text-sm font-semibold border border-primary/20">
+              {props.trendingAnime?.length || 0} anime
+            </span>
+          </motion.div>
+        </div>
+
+        <motion.button
+          whileHover={{ x: 5 }}
+          className="hidden sm:flex items-center gap-2 text-primary hover:text-primary/80 transition-colors group"
+        >
+          <span className="font-semibold">Показать всё</span>
+          <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+        </motion.button>
+      </motion.div>
+
+      {/* GRID */}
       <div className="grid lg:grid-cols-5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-7 w-full gap-4 md:gap-5 content-center">
         {props.trendingAnime.map((anime, idx) => (
-          <BlurFade key={idx} delay={idx * 0.05} inView>
+          <motion.div
+            key={anime.id}
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: idx * 0.05, duration: 0.5 }}
+          >
             <AnimeCard
               title={anime.name}
               subTitle={anime.type ? anime.type : `Rank: ${anime.rank}`}
@@ -40,7 +72,7 @@ const AnimeSections = (props: Props) => {
               sub={anime?.episodes?.sub}
               dub={anime?.episodes?.dub}
             />
-          </BlurFade>
+          </motion.div>
         ))}
       </div>
     </Container>
