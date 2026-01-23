@@ -1,11 +1,16 @@
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, Float, ForeignKey, Integer, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
+
+if TYPE_CHECKING:
+    from .user import User
+    from .anime import Anime
 
 
 class WatchProgress(Base):
@@ -39,3 +44,7 @@ class WatchProgress(Base):
         onupdate=func.now(),
         nullable=False,
     )
+
+    # Relationships
+    user: Mapped["User"] = relationship("User", back_populates="watch_progress")
+    anime: Mapped["Anime"] = relationship("Anime", back_populates="watch_progress")
