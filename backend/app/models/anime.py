@@ -1,11 +1,18 @@
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, func, ARRAY
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
+
+if TYPE_CHECKING:
+    from .user import User
+    from .release import Release
+    from .favorite import Favorite
+    from .watch_progress import WatchProgress
 
 
 class Anime(Base):
@@ -84,4 +91,37 @@ class Anime(Base):
         server_default=func.now(),
         onupdate=func.now(),
         nullable=False,
+    )
+
+    # Relationships
+    releases: Mapped[list["Release"]] = relationship(
+        "Release", back_populates="anime", cascade="all, delete-orphan"
+    )
+    favorites: Mapped[list["Favorite"]] = relationship(
+        "Favorite", back_populates="anime", cascade="all, delete-orphan"
+    )
+    watch_progress: Mapped[list["WatchProgress"]] = relationship(
+        "WatchProgress", back_populates="anime", cascade="all, delete-orphan"
+    )
+    
+    # User ownership relationships
+    creator: Mapped["User | None"] = relationship(
+        "User",
+        foreign_keys=[created_by],
+        back_populates="created_anime"
+    )
+    updater: Mapped["User | None"] = relationship(
+        "User",
+        foreign_keys=[updated_by],
+        back_populates="updated_anime"
+    )
+    locker: Mapped["User | None"] = relationship(
+        "User",
+        foreign_keys=[locked_by],
+        back_populates="locked_anime"
+    )
+    deleter: Mapped["User | None"] = relationship(
+        "User",
+        foreign_keys=[deleted_by],
+        back_populates="deleted_anime"
     )

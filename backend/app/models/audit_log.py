@@ -1,11 +1,15 @@
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import CheckConstraint, JSON, DateTime, ForeignKey, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column, validates
+from sqlalchemy.orm import Mapped, mapped_column, validates, relationship
 
 from .base import Base
+
+if TYPE_CHECKING:
+    from .user import User
 
 
 class AuditLog(Base):
@@ -48,6 +52,9 @@ class AuditLog(Base):
             name="valid_actor_type"
         ),
     )
+
+    # Relationships
+    actor: Mapped["User | None"] = relationship("User", back_populates="audit_logs")
 
     @validates("actor_type")
     def validate_actor_type(self, key: str, value: str) -> str:

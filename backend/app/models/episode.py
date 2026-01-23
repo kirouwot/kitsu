@@ -1,11 +1,16 @@
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, func, ARRAY
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
+
+if TYPE_CHECKING:
+    from .user import User
+    from .release import Release
 
 
 class Episode(Base):
@@ -80,4 +85,29 @@ class Episode(Base):
         server_default=func.now(),
         onupdate=func.now(),
         nullable=False,
+    )
+
+    # Relationships
+    release: Mapped["Release"] = relationship("Release", back_populates="episodes")
+    
+    # User ownership relationships
+    creator: Mapped["User | None"] = relationship(
+        "User",
+        foreign_keys=[created_by],
+        back_populates="created_episodes"
+    )
+    updater: Mapped["User | None"] = relationship(
+        "User",
+        foreign_keys=[updated_by],
+        back_populates="updated_episodes"
+    )
+    locker: Mapped["User | None"] = relationship(
+        "User",
+        foreign_keys=[locked_by],
+        back_populates="locked_episodes"
+    )
+    deleter: Mapped["User | None"] = relationship(
+        "User",
+        foreign_keys=[deleted_by],
+        back_populates="deleted_episodes"
     )

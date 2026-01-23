@@ -1,11 +1,16 @@
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
+
+if TYPE_CHECKING:
+    from .user import User
+    from .anime import Anime
 
 
 class Favorite(Base):
@@ -30,3 +35,7 @@ class Favorite(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+    # Relationships
+    user: Mapped["User"] = relationship("User", back_populates="favorites")
+    anime: Mapped["Anime"] = relationship("Anime", back_populates="favorites")
