@@ -43,6 +43,9 @@ class AsyncSessionAdapter:
 
     async def rollback(self) -> None:
         self._session.rollback()
+    
+    async def flush(self) -> None:
+        self._session.flush()
 
     @asynccontextmanager
     async def begin(self):
@@ -252,7 +255,8 @@ async def test_filtering_and_blacklist_applies_before_persist(db_session) -> Non
         session=adapter,
     )
 
-    service.sync_all()
+    async with adapter.begin():
+        await service.sync_all()
 
     assert session.execute(
         sa.select(sa.func.count()).select_from(anime_external)

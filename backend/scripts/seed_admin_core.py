@@ -183,106 +183,107 @@ ROLE_PERMISSIONS = {
 
 async def seed_admin_core():
     """Seed the database with default roles and permissions per SECURITY-01 contract."""
+    print("SECURITY-01: Seeding RBAC contract-compliant data...")
+    print(f"  Actor types: {', '.join(rbac_contract.ALLOWED_ACTOR_TYPES)}")
+    print(f"  User roles: {', '.join(rbac_contract.USER_ROLES)}")
+    print(f"  System roles: {', '.join(rbac_contract.SYSTEM_ROLES)}")
+    print(f"  Total permissions: {len(rbac_contract.ALLOWED_PERMISSIONS)}")
+    
     async with AsyncSessionLocal() as session:
-        role_repo = RoleRepository(session)
-        permission_repo = PermissionRepository(session)
-        
-        print("SECURITY-01: Seeding RBAC contract-compliant data...")
-        print(f"  Actor types: {', '.join(rbac_contract.ALLOWED_ACTOR_TYPES)}")
-        print(f"  User roles: {', '.join(rbac_contract.USER_ROLES)}")
-        print(f"  System roles: {', '.join(rbac_contract.SYSTEM_ROLES)}")
-        print(f"  Total permissions: {len(rbac_contract.ALLOWED_PERMISSIONS)}")
-        
-        print("\nSeeding permissions...")
-        permission_map = {}
-        for perm_data in DEFAULT_PERMISSIONS:
-            # SECURITY: Validate permission against contract
-            try:
-                rbac_contract.validate_permission(perm_data["name"])
-            except ValueError as e:
-                print(f"  ERROR: Permission '{perm_data['name']}' violates contract: {e}")
-                continue
+        async with session.begin():
+            role_repo = RoleRepository(session)
+            permission_repo = PermissionRepository(session)
             
-            existing = await permission_repo.get_by_name(perm_data["name"])
-            if existing:
-                print(f"  Permission '{perm_data['name']}' already exists, skipping...")
-                permission_map[perm_data["name"]] = existing.id
-                continue
-            
-            permission = await permission_repo.create(
-                name=perm_data["name"],
-                display_name=perm_data["display_name"],
-                resource=perm_data["resource"],
-                action=perm_data["action"],
-                description=perm_data.get("description"),
-                is_system=True,
-            )
-            permission_map[perm_data["name"]] = permission.id
-            print(f"  ✓ Created permission: {perm_data['name']}")
-        
-        print("\nSeeding roles...")
-        role_map = {}
-        for role_data in DEFAULT_ROLES:
-            # SECURITY: Validate role against contract
-            if role_data["name"] not in rbac_contract.ALL_ROLES:
-                print(f"  ERROR: Role '{role_data['name']}' not in contract")
-                continue
-            
-            existing = await role_repo.get_by_name(role_data["name"])
-            if existing:
-                print(f"  Role '{role_data['name']}' already exists, skipping...")
-                role_map[role_data["name"]] = existing.id
-                continue
-            
-            role = await role_repo.create(
-                name=role_data["name"],
-                display_name=role_data["display_name"],
-                description=role_data.get("description"),
-                is_system=role_data.get("is_system", False),
-            )
-            role_map[role_data["name"]] = role.id
-            
-            # Mark role type
-            role_type = "USER" if role_data["name"] in rbac_contract.USER_ROLES else "SYSTEM"
-            print(f"  ✓ Created role: {role_data['name']} ({role_type})")
-        
-        print("\nAssigning permissions to roles...")
-        for role_name, permission_names in ROLE_PERMISSIONS.items():
-            role_id = role_map.get(role_name)
-            if not role_id:
-                print(f"  Role '{role_name}' not found, skipping permissions...")
-                continue
-            
-            # SECURITY: Validate no system roles have admin permissions
-            if role_name in rbac_contract.SYSTEM_ROLES:
-                admin_perms = [p for p in permission_names if p in rbac_contract.ADMIN_PERMISSIONS]
-                if admin_perms:
-                    error_msg = (
-                        f"SECURITY-01 VIOLATION: System role '{role_name}' has FORBIDDEN admin permissions: {admin_perms}\n"
-                        f"Parser ≠ Admin invariant violated! Seeding aborted."
-                    )
-                    print(f"  ERROR: {error_msg}")
-                    raise RuntimeError(error_msg)
-            
-            for perm_name in permission_names:
-                perm_id = permission_map.get(perm_name)
-                if not perm_id:
-                    print(f"  Permission '{perm_name}' not found, skipping...")
+            print("\nSeeding permissions...")
+            permission_map = {}
+            for perm_data in DEFAULT_PERMISSIONS:
+                # SECURITY: Validate permission against contract
+                try:
+                    rbac_contract.validate_permission(perm_data["name"])
+                except ValueError as e:
+                    print(f"  ERROR: Permission '{perm_data['name']}' violates contract: {e}")
                     continue
                 
-                try:
-                    await role_repo.assign_permission(role_id, perm_id)
-                except Exception as e:
-                    print(f"  Warning: Could not assign '{perm_name}' to '{role_name}': {e}")
+                existing = await permission_repo.get_by_name(perm_data["name"])
+                if existing:
+                    print(f"  Permission '{perm_data['name']}' already exists, skipping...")
+                    permission_map[perm_data["name"]] = existing.id
+                    continue
+                
+                permission = await permission_repo.create(
+                    name=perm_data["name"],
+                    display_name=perm_data["display_name"],
+                    resource=perm_data["resource"],
+                    action=perm_data["action"],
+                    description=perm_data.get("description"),
+                    is_system=True,
+                )
+                permission_map[perm_data["name"]] = permission.id
+                print(f"  ✓ Created permission: {perm_data['name']}")
             
-            print(f"  ✓ Assigned {len(permission_names)} permissions to '{role_name}'")
-        
-        print("\n✅ SECURITY-01: RBAC contract seeding completed successfully!")
-        print("\nSECURITY SUMMARY:")
-        print("  ✓ No wildcard permissions (admin:*, parser:*, system:*)")
-        print("  ✓ System roles separated from user roles")
-        print("  ✓ Parser ≠ Admin invariant enforced")
-        print("  ✓ All permissions explicit and contract-compliant")
+            print("\nSeeding roles...")
+            role_map = {}
+            for role_data in DEFAULT_ROLES:
+                # SECURITY: Validate role against contract
+                if role_data["name"] not in rbac_contract.ALL_ROLES:
+                    print(f"  ERROR: Role '{role_data['name']}' not in contract")
+                    continue
+                
+                existing = await role_repo.get_by_name(role_data["name"])
+                if existing:
+                    print(f"  Role '{role_data['name']}' already exists, skipping...")
+                    role_map[role_data["name"]] = existing.id
+                    continue
+                
+                role = await role_repo.create(
+                    name=role_data["name"],
+                    display_name=role_data["display_name"],
+                    description=role_data.get("description"),
+                    is_system=role_data.get("is_system", False),
+                )
+                role_map[role_data["name"]] = role.id
+                
+                # Mark role type
+                role_type = "USER" if role_data["name"] in rbac_contract.USER_ROLES else "SYSTEM"
+                print(f"  ✓ Created role: {role_data['name']} ({role_type})")
+            
+            print("\nAssigning permissions to roles...")
+            for role_name, permission_names in ROLE_PERMISSIONS.items():
+                role_id = role_map.get(role_name)
+                if not role_id:
+                    print(f"  Role '{role_name}' not found, skipping permissions...")
+                    continue
+                
+                # SECURITY: Validate no system roles have admin permissions
+                if role_name in rbac_contract.SYSTEM_ROLES:
+                    admin_perms = [p for p in permission_names if p in rbac_contract.ADMIN_PERMISSIONS]
+                    if admin_perms:
+                        error_msg = (
+                            f"SECURITY-01 VIOLATION: System role '{role_name}' has FORBIDDEN admin permissions: {admin_perms}\n"
+                            f"Parser ≠ Admin invariant violated! Seeding aborted."
+                        )
+                        print(f"  ERROR: {error_msg}")
+                        raise RuntimeError(error_msg)
+                
+                for perm_name in permission_names:
+                    perm_id = permission_map.get(perm_name)
+                    if not perm_id:
+                        print(f"  Permission '{perm_name}' not found, skipping...")
+                        continue
+                    
+                    try:
+                        await role_repo.assign_permission(role_id, perm_id)
+                    except Exception as e:
+                        print(f"  Warning: Could not assign '{perm_name}' to '{role_name}': {e}")
+                
+                print(f"  ✓ Assigned {len(permission_names)} permissions to '{role_name}'")
+            
+            print("\n✅ SECURITY-01: RBAC contract seeding completed successfully!")
+            print("\nSECURITY SUMMARY:")
+            print("  ✓ No wildcard permissions (admin:*, parser:*, system:*)")
+            print("  ✓ System roles separated from user roles")
+            print("  ✓ Parser ≠ Admin invariant enforced")
+            print("  ✓ All permissions explicit and contract-compliant")
 
 
 if __name__ == "__main__":

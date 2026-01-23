@@ -34,7 +34,9 @@ def _insert_for(session: AsyncSession):
 
 
 async def _commit(session: AsyncSession) -> None:
-    await session.commit()
+    # For persist mode, we need to flush changes to make them visible
+    # Actual commit happens at the transaction boundary (begin() context)
+    await session.flush()
 
 
 def _normalize_setting_list(value: Any) -> list[str]:
