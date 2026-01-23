@@ -34,10 +34,9 @@ def _insert_for(session: AsyncSession):
 
 
 async def _commit(session: AsyncSession) -> None:
-    # Removed: Caller is responsible for transaction management
-    # This was previously used to commit, but now transactions should be
-    # managed at the service boundary (router or worker level)
-    pass
+    # For persist mode, we need to flush changes to make them visible
+    # Actual commit happens at the transaction boundary (begin() context)
+    await session.flush()
 
 
 def _normalize_setting_list(value: Any) -> list[str]:
